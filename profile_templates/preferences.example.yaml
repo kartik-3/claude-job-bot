@@ -1,0 +1,37 @@
+# Copy to profile/preferences.yaml and fill in your real preferences.
+
+target_roles:
+  - Senior Software Engineer
+  - Staff Software Engineer
+  - Principal Engineer
+
+locations:
+  - San Francisco, CA
+  - New York, NY
+  - Remote
+
+remote_ok: true
+
+seniority:
+  min: senior       # junior, mid, senior, staff, principal
+  max: principal
+
+salary:
+  min_usd: 180000
+  currency: USD
+
+visa_sponsorship_needed: false
+
+# Jobs scoring below this threshold are marked should_not_apply
+fit_score_threshold: 70
+
+# Hard non-negotiables — any job failing these is rejected without LLM call
+non_negotiables:
+  - no_relocation_required: true   # won't relocate to a new city
+  - no_on_call_pager_duty: false   # on-call is fine
+
+# Roles/industries to skip entirely
+excluded_industries: []
+excluded_titles:
+  - "QA Engineer"
+  - "Test Engineer"

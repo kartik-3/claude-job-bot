@@ -1,3 +1,15 @@
+### Project specific gitignore###
+
+profile/
+outputs/
+db/
+.env
+*.pdf
+
+
+
+### Python default gitignore ###
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
