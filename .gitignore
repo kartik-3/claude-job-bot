@@ -2,9 +2,10 @@
 
 profile/
 outputs/
-db/
+db/*.sqlite
 .env
 *.pdf
+.DS_Store
 
 
 

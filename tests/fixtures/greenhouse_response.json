@@ -1,0 +1,23 @@
+{
+  "jobs": [
+    {
+      "id": 4028988007,
+      "title": "Senior Software Engineer, Core Product",
+      "absolute_url": "https://boards.greenhouse.io/anthropic/jobs/4028988007",
+      "location": {"name": "San Francisco, CA"},
+      "content": "<p>We are looking for a Senior Software Engineer to join our Core Product team.</p>",
+      "updated_at": "2026-04-01T10:00:00-07:00",
+      "metadata": []
+    },
+    {
+      "id": 4028988008,
+      "title": "Machine Learning Engineer",
+      "absolute_url": "https://boards.greenhouse.io/anthropic/jobs/4028988008",
+      "location": {"name": "Remote"},
+      "content": "<p>We are looking for an ML Engineer to work on model training.</p>",
+      "updated_at": "2026-04-02T10:00:00-07:00",
+      "metadata": []
+    }
+  ],
+  "meta": {"total": 2}
+}

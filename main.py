@@ -12,7 +12,33 @@ load_dotenv()
 
 
 def cmd_discover(args: argparse.Namespace) -> None:
-    logging.info("discover: not yet implemented (Phase 1)")
+    import yaml
+    from db import init_db, upsert_job
+    from scrapers import get_scraper
+    from scrapers.base import Company
+
+    init_db()
+
+    sources_path = Path("sources.yaml")
+    companies = [Company(**c) for c in yaml.safe_load(sources_path.read_text())]
+
+    total_new = 0
+    for company in companies:
+        scraper = get_scraper(company.ats)
+        if scraper is None:
+            logging.warning("No scraper for ATS '%s' (company: %s) — skipping", company.ats, company.name)
+            continue
+        try:
+            jobs = scraper.fetch_jobs(company)
+        except Exception as exc:
+            logging.error("Failed to fetch jobs for %s: %s", company.name, exc)
+            continue
+
+        new_count = sum(upsert_job(job.model_dump()) for job in jobs)
+        logging.info("%s: %d jobs fetched, %d new", company.name, len(jobs), new_count)
+        total_new += new_count
+
+    print(f"Discovery complete — {total_new} new jobs added")
 
 
 def cmd_evaluate(args: argparse.Namespace) -> None:

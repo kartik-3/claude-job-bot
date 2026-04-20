@@ -1,5 +1,5 @@
+import hashlib
 from abc import ABC, abstractmethod
-from typing import Any
 
 from pydantic import BaseModel
 
@@ -26,3 +26,7 @@ class Job(BaseModel):
 class BaseScraper(ABC):
     @abstractmethod
     def fetch_jobs(self, company: Company) -> list[Job]: ...
+
+
+def make_job_id(company: str, title: str, url: str) -> str:
+    return hashlib.sha256(f"{company}:{title}:{url}".encode()).hexdigest()
