@@ -1,0 +1,94 @@
+#!/usr/bin/env python3
+"""Job application bot CLI."""
+
+import argparse
+import logging
+import sys
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
+def cmd_discover(args: argparse.Namespace) -> None:
+    logging.info("discover: not yet implemented (Phase 1)")
+
+
+def cmd_evaluate(args: argparse.Namespace) -> None:
+    logging.info("evaluate: not yet implemented (Phase 2)")
+
+
+def cmd_tailor(args: argparse.Namespace) -> None:
+    logging.info("tailor: not yet implemented (Phase 3)")
+
+
+def cmd_apply(args: argparse.Namespace) -> None:
+    logging.info("apply: not yet implemented (Phase 4)")
+
+
+def cmd_status(args: argparse.Namespace) -> None:
+    from db import count_jobs, init_db
+
+    init_db()
+    total = count_jobs()
+    print(f"{total} jobs in database")
+
+    if total > 0:
+        from db import STATUSES
+
+        for status in STATUSES:
+            n = count_jobs(status)
+            if n:
+                print(f"  {status}: {n}")
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="job-bot",
+        description="Discover, evaluate, tailor, and apply to jobs.",
+    )
+    parser.add_argument(
+        "--verbose", "-v", action="store_true", help="Enable debug logging"
+    )
+
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    sub.add_parser("discover", help="Pull new jobs from ATS sources into the DB")
+
+    sub.add_parser("evaluate", help="Score new jobs against resume")
+
+    sub.add_parser("tailor", help="Generate tailored resume PDFs for good-fit jobs")
+
+    apply_p = sub.add_parser("apply", help="Auto-apply to tailored jobs")
+    apply_p.add_argument(
+        "--submit",
+        action="store_true",
+        help="Actually submit (default: dry-run only)",
+    )
+    apply_p.add_argument("--ats", default=None, help="Limit to one ATS platform")
+
+    sub.add_parser("status", help="Show counts by status")
+
+    return parser
+
+
+def main() -> None:
+    parser = build_parser()
+    args = parser.parse_args()
+
+    level = logging.DEBUG if args.verbose else logging.INFO
+    logging.basicConfig(format="%(levelname)s %(message)s", level=level)
+
+    commands = {
+        "discover": cmd_discover,
+        "evaluate": cmd_evaluate,
+        "tailor": cmd_tailor,
+        "apply": cmd_apply,
+        "status": cmd_status,
+    }
+    commands[args.command](args)
+
+
+if __name__ == "__main__":
+    main()

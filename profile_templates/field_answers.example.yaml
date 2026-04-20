@@ -1,0 +1,52 @@
+# Copy to profile/field_answers.yaml and fill in your real answers.
+# Keys are fuzzy-matched against application form field labels.
+# Values must be truthful; never fabricate.
+
+full_name: Jane Doe
+first_name: Jane
+last_name: Doe
+email: jane@example.com
+phone: "+15555551234"
+location: San Francisco, CA
+city: San Francisco
+state: CA
+country: United States
+zip_code: "94105"
+
+linkedin_url: https://linkedin.com/in/janedoe
+github_url: https://github.com/janedoe
+portfolio_url: ""
+website: ""
+
+work_authorization: "Yes, I am authorized to work in the United States"
+visa_sponsorship_needed: "No"
+require_sponsorship: "No"
+
+years_of_experience: "5"
+years_experience_python: "5"
+years_experience_go: "3"
+
+current_salary: ""           # leave blank if you prefer not to share
+expected_salary: "200000"
+salary_expectations: "Open to discussion based on total compensation"
+
+notice_period: "2 weeks"
+earliest_start_date: "2 weeks from offer"
+available_to_start: "2 weeks from offer"
+
+willing_to_relocate: "No"
+
+pronouns: "She/Her"
+
+# EEOC — answer honestly or "Prefer not to answer"
+gender: "Female"
+race_ethnicity: "Prefer not to answer"
+veteran_status: "I am not a veteran"
+disability_status: "No, I do not have a disability"
+
+how_did_you_hear: "LinkedIn"
+
+cover_letter_default: |
+  I'm excited to apply for this role. My background in backend systems and
+  developer tooling aligns well with the challenges described in the job
+  posting. I'd love to bring my experience to your team.
