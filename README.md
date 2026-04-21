@@ -38,11 +38,13 @@ cp .env.example .env          # add your ANTHROPIC_API_KEY
 Create your profile (gitignored — never committed):
 
 ```bash
-mkdir profile
-cp profile_templates/resume.example.md       profile/resume.md
-cp profile_templates/preferences.example.yaml profile/preferences.yaml
-cp profile_templates/field_answers.example.yaml profile/field_answers.yaml
+mkdir -p profile/cover_letters
+cp profile_templates/resume.md              profile/resume.md
+cp profile_templates/preferences.yaml       profile/preferences.yaml
+cp profile_templates/field_answers.yaml     profile/field_answers.yaml
 # Edit each file with your real information
+# cover_letter_template.md and cover_letter_fallback.md are used directly
+# from profile_templates/ by the tailor and applier modules
 ```
 
 Edit `sources.yaml` to add the companies you want to track.
@@ -86,13 +88,17 @@ After each run, check `outputs/manual_queue.md` for jobs that need manual attent
 ```
 sources.yaml              # companies + ATS type (edit this)
 profile/                  # your resume, preferences, form answers (gitignored)
-profile_templates/        # example files to copy from
+  cover_letters/          # per-job tailored cover letters (gitignored)
+profile_templates/        # template files to copy from
+  cover_letter_template.md   # filled per-job by tailor module (Phase 3)
+  cover_letter_fallback.md   # fixed short paragraph for low-priority / char-limited forms
 scrapers/                 # ATS API clients (Greenhouse, Lever, Ashby, Workday)
 evaluator/                # Claude-powered fit scoring
-tailor/                   # resume tailoring + PDF rendering
+tailor/                   # resume tailoring + PDF rendering + cover letter generation
 applier/                  # Playwright form automation
 db/                       # SQLite database (gitignored)
 outputs/                  # tailored PDFs, screenshots, logs (gitignored)
+  cover_letters/          # generated cover letters (gitignored)
 ```
 
 ---
