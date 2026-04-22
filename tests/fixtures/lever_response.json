@@ -1,0 +1,28 @@
+[
+  {
+    "id": "abc123-def456-7890",
+    "text": "Senior Software Engineer",
+    "hostedUrl": "https://jobs.lever.co/linear/abc123-def456-7890",
+    "applyUrl": "https://jobs.lever.co/linear/abc123-def456-7890/apply",
+    "description": "<p>Linear is building the future of project management.</p>",
+    "descriptionPlain": "Linear is building the future of project management.",
+    "createdAt": 1743465600000,
+    "categories": {
+      "location": "San Francisco or Remote",
+      "team": "Engineering"
+    }
+  },
+  {
+    "id": "ghi789-jkl012-3456",
+    "text": "Staff Engineer, Infrastructure",
+    "hostedUrl": "https://jobs.lever.co/linear/ghi789-jkl012-3456",
+    "applyUrl": "https://jobs.lever.co/linear/ghi789-jkl012-3456/apply",
+    "description": "<p>We're hiring a Staff Engineer to own our infrastructure platform.</p>",
+    "descriptionPlain": "We're hiring a Staff Engineer to own our infrastructure platform.",
+    "createdAt": 1743552000000,
+    "categories": {
+      "location": "New York, NY",
+      "team": "Infrastructure"
+    }
+  }
+]

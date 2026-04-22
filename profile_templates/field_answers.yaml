@@ -1,0 +1,47 @@
+# Copy to profile/field_answers.yaml and fill in your real answers.
+# Keys are fuzzy-matched against application form field labels.
+# Values must be truthful; never fabricate.
+
+full_name: Kartik Sehgal
+first_name: Kartik
+last_name: Sehgal
+email: kartiksehgal3@gmail.com
+phone: "+919958571972"
+location: Hyderabad, Telangana
+city: Hyderabad
+state: Telangana
+country: India
+zip_code: "500089"
+
+linkedin_url: https://linkedin.com/in/sehgal-kartik
+github_url: https://github.com/kartik-3
+portfolio_url: ""
+website: ""
+
+work_authorization: "Yes, I am authorized to work in India"
+visa_sponsorship_needed: "No"
+require_sponsorship: "No"
+
+years_of_experience: "6"
+years_experience_python: "5"
+years_experience_java: "6"
+
+current_salary: ""           # leave blank if you prefer not to share
+expected_salary: "40 LPA"  # leave blank if you prefer not to share
+salary_expectations: "Open to discussion based on total compensation"
+
+notice_period: "2 weeks"
+earliest_start_date: "2 weeks from offer"
+available_to_start: "2 weeks from offer"
+
+willing_to_relocate: "Yes"
+
+pronouns: "He/Him"
+
+# EEOC — answer honestly or "Prefer not to answer"
+gender: "Male"
+race_ethnicity: "Asian"
+veteran_status: "I am not a veteran"
+disability_status: "No, I do not have a disability"
+
+how_did_you_hear: "LinkedIn"

@@ -29,12 +29,15 @@ job-bot/
 ├── profile/                   # ALL GITIGNORED
 │   ├── resume.md              # base resume in markdown
 │   ├── preferences.yaml       # target roles, locations, salary, remote, visa, seniority
-│   └── field_answers.yaml     # growing Q&A memory for application forms
+│   ├── field_answers.yaml     # growing Q&A memory for application forms
+│   └── cover_letters/         # per-job tailored cover letters
 │
-├── profile_templates/         # committed templates with dummy data
-│   ├── resume.example.md
-│   ├── preferences.example.yaml
-│   └── field_answers.example.yaml
+├── profile_templates/         # committed templates (copy to profile/ to use)
+│   ├── resume.md
+│   ├── preferences.yaml
+│   ├── field_answers.yaml
+│   ├── cover_letter_template.md   # filled per-job by tailor module; use as default
+│   └── cover_letter_fallback.md   # fixed short paragraph for low-priority / char-limited forms
 │
 ├── sources.yaml               # companies + ATS type (committed)
 │
@@ -70,6 +73,7 @@ job-bot/
 │
 ├── outputs/                   # gitignored
 │   ├── tailored_resumes/
+│   ├── cover_letters/         # generated per-job cover letters
 │   ├── application_logs/
 │   ├── screenshots/
 │   ├── unknowns.yaml          # fields the bot didn't know how to fill
@@ -176,14 +180,22 @@ Returns normalized `Job` dicts with the schema above. `apply_url` is the direct 
 
 **Pipeline:**
 1. Load `profile/resume.md` + JD.
-2. Claude returns tailored markdown.
+2. Claude returns tailored resume markdown.
 3. Render to PDF via `weasyprint` or `pandoc`.
 4. Save to `outputs/tailored_resumes/{company}-{role-slug}.pdf`.
-5. Update job row: `tailored_resume_path`, `status=tailored`.
+5. Generate cover letter: fill `profile_templates/cover_letter_template.md` with job-specific values from the JD using Claude. Apply tailoring rules:
+   - Never invent company-specific claims; use `"the mission of {{company_name}} resonates with me"` if nothing concrete is available from the JD.
+   - Bridge sentence must map to real resume content — pull from candidate summary, don't embellish.
+   - Drop the optional paragraph when the JD is vague or generic.
+   - Keep total length under 300 words.
+   - Match tone to company: startup/casual JD → `"Hi team"` / `"Thanks"`; enterprise/finance → keep formal.
+   - Never claim "passionate about" unless the resume supports it.
+6. Save cover letter to `outputs/cover_letters/{company}-{role-slug}.md`.
+7. Update job row: `tailored_resume_path`, `status=tailored`.
 
-**Quality gate:** First 3–5 tailored resumes I review manually before trusting the pipeline. Add a `--review` flag that pauses for approval before saving.
+**Quality gate:** First 3–5 tailored resumes and cover letters I review manually before trusting the pipeline. Add a `--review` flag that pauses for approval before saving.
 
-**Done when:** `python main.py tailor` produces per-job PDFs for all `should_apply` jobs.
+**Done when:** `python main.py tailor` produces per-job PDFs and cover letter `.md` files for all `should_apply` jobs.
 
 ---
 
@@ -207,6 +219,10 @@ Returns normalized `Job` dicts with the schema above. `apply_url` is the direct 
 5. If all required fields resolved:
    - Upload tailored resume PDF.
    - Fill every field.
+   - **Cover letter field handling:**
+     - If field present and tailoring was run → paste/upload `outputs/cover_letters/{company}-{role-slug}.md`.
+     - If field present but tailoring wasn't run or failed → use `profile_templates/cover_letter_fallback.md`.
+     - If field is optional and tailoring wasn't run → skip it.
    - Take pre-submit screenshot.
    - **If `--dry-run`:** stop here, save screenshot, mark `status=ready_to_submit`.
    - **Else:** click submit, screenshot confirmation, mark `status=applied`, record `applied_at`.
@@ -223,7 +239,7 @@ Returns normalized `Job` dicts with the schema above. `apply_url` is the direct 
 - Preferred pronouns
 - EEOC self-identification (gender, race, veteran, disability)
 - "How did you hear about us?" default
-- Cover letter default (or per-company override)
+- Cover letter fallback text (for forms that require it but tailoring wasn't run)
 
 **Learning loop:** Every UNKNOWN I answer gets appended to `field_answers.yaml`. Next run, automatic.
 

@@ -2,23 +2,31 @@
 
 target_roles:
   - Senior Software Engineer
-  - Staff Software Engineer
-  - Principal Engineer
+  - Software Engineer 2
+  - Software Engineer
+  - Fullstack Engineer
+  - Backend Engineer
 
 locations:
-  - San Francisco, CA
-  - New York, NY
+  - Hyderabad, India
+  - Bangalore/Bengaluru, India
+  - New Delhi, India
+  - Chennai, India
+  - Pune, India
+  - Gurgaon/Gurugram, India
+  - Noida, India
+  - India
   - Remote
 
 remote_ok: true
 
 seniority:
-  min: senior       # junior, mid, senior, staff, principal
-  max: principal
+  min: mid       # junior, mid, senior, staff, principal
+  max: Senior
 
 salary:
-  min_usd: 180000
-  currency: USD
+  min_inr: 200000
+  currency: INR
 
 visa_sponsorship_needed: false
 
@@ -27,7 +35,7 @@ fit_score_threshold: 70
 
 # Hard non-negotiables — any job failing these is rejected without LLM call
 non_negotiables:
-  - no_relocation_required: true   # won't relocate to a new city
+  - no_relocation_required: false   # won't relocate to a new city
   - no_on_call_pager_duty: false   # on-call is fine
 
 # Roles/industries to skip entirely
