@@ -7,7 +7,7 @@ from pydantic import BaseModel
 class Company(BaseModel):
     name: str
     ats: str
-    slug: str
+    slug: str | None = None
 
 
 class Job(BaseModel):

@@ -4,6 +4,7 @@ profile/
 outputs/
 db/*.sqlite
 .env
+sources.yaml
 *.pdf
 .DS_Store
 
