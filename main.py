@@ -65,7 +65,26 @@ def cmd_evaluate(args: argparse.Namespace) -> None:
 
 
 def cmd_tailor(args: argparse.Namespace) -> None:
-    logging.info("tailor: not yet implemented (Phase 3)")
+    from db import init_db
+    from tailor.tailor import run_tailoring
+
+    init_db()
+
+    resume_path = Path("profile/resume.md")
+    template_path = Path("profile_templates/cover_letter_template.md")
+    output_dir = Path("outputs")
+
+    if not resume_path.exists():
+        logging.error("Missing %s — copy from profile_templates/resume.md", resume_path)
+        sys.exit(1)
+
+    resume_md = resume_path.read_text()
+    template_md = template_path.read_text()
+
+    tailored, failed = run_tailoring(
+        resume_md, template_md, output_dir, review=args.review
+    )
+    print(f"Tailored {tailored} jobs — {failed} failed")
 
 
 def cmd_apply(args: argparse.Namespace) -> None:
@@ -103,7 +122,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("evaluate", help="Score new jobs against resume")
 
-    sub.add_parser("tailor", help="Generate tailored resume PDFs for good-fit jobs")
+    tailor_p = sub.add_parser("tailor", help="Generate tailored resume PDFs for good-fit jobs")
+    tailor_p.add_argument(
+        "--review",
+        action="store_true",
+        help="Pause for manual approval before saving each tailored resume and cover letter",
+    )
 
     apply_p = sub.add_parser("apply", help="Auto-apply to tailored jobs")
     apply_p.add_argument(
