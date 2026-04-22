@@ -43,9 +43,17 @@ def get_connection() -> sqlite3.Connection:
     return conn
 
 
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Incremental schema migrations — safe to run on every startup."""
+    existing = {row[1] for row in conn.execute("PRAGMA table_info(jobs)")}
+    if "cover_letter_path" not in existing:
+        conn.execute("ALTER TABLE jobs ADD COLUMN cover_letter_path TEXT")
+
+
 def init_db() -> None:
     with get_connection() as conn:
         conn.executescript(_SCHEMA)
+        _migrate(conn)
 
 
 def upsert_job(job: dict) -> bool:
@@ -94,6 +102,27 @@ def get_jobs_by_status(status: str) -> list[dict]:
             "SELECT * FROM jobs WHERE status = ?", (status,)
         ).fetchall()
         return [dict(row) for row in rows]
+
+
+def update_job_tailored(
+    job_id: str,
+    tailored_resume_path: str | None = None,
+    cover_letter_path: str | None = None,
+    status: str = "tailored",
+    notes: str | None = None,
+) -> None:
+    with get_connection() as conn:
+        conn.execute(
+            """
+            UPDATE jobs
+            SET tailored_resume_path = ?,
+                cover_letter_path    = ?,
+                status               = ?,
+                notes                = ?
+            WHERE id = ?
+            """,
+            (tailored_resume_path, cover_letter_path, status, notes, job_id),
+        )
 
 
 def update_job_evaluation(
