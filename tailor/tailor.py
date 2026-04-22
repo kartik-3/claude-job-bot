@@ -1,3 +1,4 @@
+import difflib
 import logging
 import os
 import re
@@ -35,6 +36,18 @@ def slugify(text: str) -> str:
 
 def _count_words(text: str) -> int:
     return len(text.split())
+
+
+def _write_diff(original: str, tailored: str, diff_path: Path) -> None:
+    """Write a unified diff between the original and tailored resume markdown."""
+    diff_lines = list(difflib.unified_diff(
+        original.splitlines(keepends=True),
+        tailored.splitlines(keepends=True),
+        fromfile="resume.md (original)",
+        tofile="resume.md (tailored)",
+    ))
+    diff_path.parent.mkdir(parents=True, exist_ok=True)
+    diff_path.write_text("".join(diff_lines) if diff_lines else "(no changes)\n", encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
@@ -191,6 +204,10 @@ def run_tailoring(
             failed_count += 1
             continue
 
+        diff_path = output_dir / "tailored_resumes" / f"{job_slug}.diff"
+        _write_diff(resume_md, tailored_md, diff_path)
+        logger.debug("Diff saved: %s", diff_path)
+
         if review and not _review_and_confirm(tailored_md, f"Resume: {company} — {title}"):
             logger.info("Skipped (rejected in review): %s — %s", company, title)
             continue
@@ -229,8 +246,9 @@ def run_tailoring(
             status="tailored",
         )
         logger.info(
-            "Saved: resume=%s cover_letter=%s",
+            "Saved: resume=%s diff=%s cover_letter=%s",
             actual_resume_path.name,
+            diff_path.name,
             cover_letter_path.name if cover_letter_path else "none",
         )
         tailored_count += 1

@@ -117,6 +117,45 @@ def test_markdown_to_pdf_creates_parent_dirs(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# _write_diff
+# ---------------------------------------------------------------------------
+
+def test_write_diff_captures_changes(tmp_path):
+    from tailor.tailor import _write_diff
+
+    original = "# Resume\n\n- Bullet A\n- Bullet B\n"
+    tailored = "# Resume\n\n- Bullet B\n- Bullet A (reordered)\n"
+    diff_path = tmp_path / "test.diff"
+
+    _write_diff(original, tailored, diff_path)
+
+    content = diff_path.read_text()
+    assert "--- resume.md (original)" in content
+    assert "+++ resume.md (tailored)" in content
+    assert "-" in content  # removed lines
+    assert "+" in content  # added lines
+
+
+def test_write_diff_no_changes(tmp_path):
+    from tailor.tailor import _write_diff
+
+    text = "# Resume\n\nNo changes here.\n"
+    diff_path = tmp_path / "nodiff.diff"
+
+    _write_diff(text, text, diff_path)
+
+    assert diff_path.read_text() == "(no changes)\n"
+
+
+def test_write_diff_creates_parent_dirs(tmp_path):
+    from tailor.tailor import _write_diff
+
+    diff_path = tmp_path / "a" / "b" / "resume.diff"
+    _write_diff("old", "new", diff_path)
+    assert diff_path.exists()
+
+
+# ---------------------------------------------------------------------------
 # Prompt formatting — no empty placeholders
 # ---------------------------------------------------------------------------
 

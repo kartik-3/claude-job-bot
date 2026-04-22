@@ -12,7 +12,7 @@ A personal job application bot that discovers roles from target companies, score
 |-------|---------|-------------|
 | 1 | `discover` | Fetches current openings from `sources.yaml` into SQLite |
 | 2 | `evaluate` | Scores each new job against your resume via Claude; marks `should_apply` / `should_not_apply` |
-| 3 | `tailor` | Generates a tailored resume PDF per good-fit job |
+| 3 | `tailor` | Generates a tailored resume PDF + cover letter per good-fit job; saves a `.diff` for review |
 | 4 | `apply` | Fills and submits ATS forms via Playwright; aborts on unknown fields |
 | 5 | `status` | Shows job counts by status; `outputs/manual_queue.md` lists jobs needing manual attention |
 
@@ -34,6 +34,23 @@ playwright install chromium
 
 cp .env.example .env          # add your ANTHROPIC_API_KEY
 ```
+
+### PDF rendering (required for `tailor`)
+
+The tailor module renders resumes to PDF using pandoc. Without it, resumes are saved as styled HTML (which you can print to PDF from a browser).
+
+**macOS:**
+```bash
+brew install pandoc
+brew install --cask basictex   # minimal LaTeX for pandoc's PDF engine
+```
+
+**Linux:**
+```bash
+sudo apt install pandoc texlive-xetex
+```
+
+Alternatively, install [pango](https://pango.gnome.org/) (`brew install pango`) to use WeasyPrint instead — both renderers are tried automatically.
 
 Create your profile (gitignored — never committed):
 
@@ -63,8 +80,11 @@ python main.py discover
 # Score new jobs against your resume
 python main.py evaluate
 
-# Generate tailored resume PDFs for good-fit jobs
+# Generate tailored resume PDFs + cover letters for good-fit jobs
 python main.py tailor
+
+# Pause for manual approval before saving each result (recommended for first run)
+python main.py tailor --review
 
 # Dry-run auto-apply (screenshots only, nothing submitted)
 python main.py apply
