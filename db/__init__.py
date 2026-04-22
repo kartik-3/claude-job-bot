@@ -86,3 +86,29 @@ def count_jobs(status: str | None = None) -> int:
         else:
             row = conn.execute("SELECT COUNT(*) FROM jobs").fetchone()
         return row[0]
+
+
+def get_jobs_by_status(status: str) -> list[dict]:
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT * FROM jobs WHERE status = ?", (status,)
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+
+def update_job_evaluation(
+    job_id: str,
+    fit_score: int,
+    status: str,
+    evaluation_json: str,
+    notes: str | None = None,
+) -> None:
+    with get_connection() as conn:
+        conn.execute(
+            """
+            UPDATE jobs
+            SET fit_score = ?, status = ?, evaluation_json = ?, notes = ?
+            WHERE id = ?
+            """,
+            (fit_score, status, evaluation_json, notes, job_id),
+        )
