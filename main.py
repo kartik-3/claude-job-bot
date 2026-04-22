@@ -42,7 +42,26 @@ def cmd_discover(args: argparse.Namespace) -> None:
 
 
 def cmd_evaluate(args: argparse.Namespace) -> None:
-    logging.info("evaluate: not yet implemented (Phase 2)")
+    from db import init_db
+    from evaluator.evaluate import load_preferences, run_evaluation
+
+    init_db()
+
+    prefs_path = Path("profile/preferences.yaml")
+    resume_path = Path("profile/resume.md")
+
+    if not prefs_path.exists():
+        logging.error("Missing %s — copy from profile_templates/preferences.yaml", prefs_path)
+        sys.exit(1)
+    if not resume_path.exists():
+        logging.error("Missing %s — copy from profile_templates/resume.md", resume_path)
+        sys.exit(1)
+
+    prefs = load_preferences(prefs_path)
+    resume = resume_path.read_text()
+
+    evaluated, should_apply, skipped = run_evaluation(prefs, resume)
+    print(f"Evaluated {evaluated} jobs — {should_apply} to apply, {skipped} skipped")
 
 
 def cmd_tailor(args: argparse.Namespace) -> None:
