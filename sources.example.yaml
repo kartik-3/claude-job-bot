@@ -1,0 +1,60 @@
+# Copy this file to sources.yaml and fill in your target companies.
+# sources.yaml is gitignored — your target list stays private.
+#
+# Supported ATS values: greenhouse, lever, ashby, workday, custom
+#
+# For Greenhouse, Lever, Ashby: set slug to the company's ATS identifier.
+# For Workday: set slug to "{tenant}.wd{n}/{site}" format.
+# For custom portals (no supported ATS): omit slug or set to null.
+
+# --- Greenhouse ---
+- name: Stripe
+  ats: greenhouse
+  slug: stripe
+
+- name: Figma
+  ats: greenhouse
+  slug: figma
+
+- name: Rippling
+  ats: greenhouse
+  slug: rippling
+
+# --- Lever ---
+- name: Plaid
+  ats: lever
+  slug: plaid
+
+- name: Scale AI
+  ats: lever
+  slug: scaleai
+
+# --- Ashby ---
+- name: Linear
+  ats: ashby
+  slug: linear
+
+- name: Notion
+  ats: ashby
+  slug: notion
+
+# --- Workday ---
+# Slug format: {tenant}.wd{n}/{site}
+# Find the tenant/site from the company's careers URL.
+- name: Microsoft
+  ats: workday
+  slug: microsoft.wd1/MSFTExternal
+
+- name: NVIDIA
+  ats: workday
+  slug: nvidia.wd5/NVIDIAExternalCareerSite
+
+# --- Custom portals (manual queue only) ---
+# These will be skipped by discover; add them to manual_queue.md manually.
+- name: Apple
+  ats: custom
+  slug: null
+
+- name: Google
+  ats: custom
+  slug: null
