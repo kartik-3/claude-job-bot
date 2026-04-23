@@ -1,0 +1,48 @@
+# Copy to profile/field_answers.yaml and fill in your real answers.
+# Keys are fuzzy-matched against application form field labels.
+# Values must be truthful; never fabricate.
+
+full_name: "Your Full Name"
+first_name: "First"
+last_name: "Last"
+email: "your.email@example.com"
+phone: "+1234567890"
+location: "City, State/Province"
+city: "City"
+state: "State"
+country: "Country"
+zip_code: "000000"
+
+linkedin_url: "https://linkedin.com/in/your-profile"
+github_url: "https://github.com/your-username"
+portfolio_url: ""
+website: ""
+
+work_authorization: "Yes, I am authorized to work in [Country]"
+visa_sponsorship_needed: "No"
+require_sponsorship: "No"
+
+years_of_experience: "5"
+years_experience_python: "3"
+years_experience_java: "3"
+# Add more per-language fields as needed: years_experience_[language]
+
+current_salary: ""           # leave blank if you prefer not to share
+expected_salary: ""          # e.g. "40 LPA" or "$120,000"
+salary_expectations: "Open to discussion based on total compensation"
+
+notice_period: "2 weeks"
+earliest_start_date: "2 weeks from offer"
+available_to_start: "2 weeks from offer"
+
+willing_to_relocate: "Yes"
+
+pronouns: "He/Him"           # or "She/Her", "They/Them", "Prefer not to answer"
+
+# EEOC — answer honestly or "Prefer not to answer"
+gender: "Prefer not to answer"
+race_ethnicity: "Prefer not to answer"
+veteran_status: "I am not a veteran"
+disability_status: "No, I do not have a disability"
+
+how_did_you_hear: "LinkedIn"

@@ -2,31 +2,25 @@
 
 target_roles:
   - Senior Software Engineer
-  - Software Engineer 2
   - Software Engineer
-  - Fullstack Engineer
   - Backend Engineer
+  # Add more target titles here
 
 locations:
-  - Hyderabad, India
-  - Bangalore/Bengaluru, India
-  - New Delhi, India
-  - Chennai, India
-  - Pune, India
-  - Gurgaon/Gurugram, India
-  - Noida, India
-  - India
+  - "[City 1], [Country]"
+  - "[City 2], [Country]"
   - Remote
+  # Add more acceptable locations here
 
 remote_ok: true
 
 seniority:
   min: mid       # junior, mid, senior, staff, principal
-  max: Senior
+  max: senior
 
 salary:
-  min_inr: 200000
-  currency: INR
+  min_inr: 0     # Minimum acceptable salary in INR (set 0 to disable)
+  currency: INR  # Change to USD, EUR, etc. as needed
 
 visa_sponsorship_needed: false
 
@@ -34,12 +28,11 @@ visa_sponsorship_needed: false
 fit_score_threshold: 70
 
 # Hard non-negotiables — any job failing these is rejected without LLM call
-non_negotiables:
-  - no_relocation_required: false   # won't relocate to a new city
-  - no_on_call_pager_duty: false   # on-call is fine
+non_negotiables: []
 
 # Roles/industries to skip entirely
 excluded_industries: []
 excluded_titles:
   - "QA Engineer"
   - "Test Engineer"
+  # Add more titles to exclude
