@@ -88,7 +88,37 @@ def cmd_tailor(args: argparse.Namespace) -> None:
 
 
 def cmd_apply(args: argparse.Namespace) -> None:
-    logging.info("apply: not yet implemented (Phase 4)")
+    from db import init_db
+    from applier import run_apply
+
+    init_db()
+
+    field_answers_path = Path("profile/field_answers.yaml")
+    outputs_dir = Path("outputs")
+
+    if not field_answers_path.exists():
+        logging.error(
+            "Missing %s — copy from profile_templates/field_answers.yaml",
+            field_answers_path,
+        )
+        sys.exit(1)
+
+    dry_run = not args.submit
+    if not dry_run:
+        confirm = input("About to submit real applications. Type 'yes' to continue: ")
+        if confirm.strip().lower() != "yes":
+            print("Aborted.")
+            sys.exit(0)
+
+    applied, dry_run_count, manual = run_apply(
+        field_answers_path=field_answers_path,
+        outputs_dir=outputs_dir,
+        ats_filter=args.ats,
+        dry_run=dry_run,
+    )
+
+    mode = "DRY RUN" if dry_run else "LIVE"
+    print(f"[{mode}] Applied: {applied} | Dry-run complete: {dry_run_count} | Needs manual: {manual}")
 
 
 def cmd_status(args: argparse.Namespace) -> None:

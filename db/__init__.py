@@ -125,6 +125,27 @@ def update_job_tailored(
         )
 
 
+def update_job_applied(
+    job_id: str,
+    status: str,
+    notes: str | None = None,
+    screenshot_path: str | None = None,
+) -> None:
+    now = datetime.now(timezone.utc).isoformat()
+    applied_at = now if status == "applied" else None
+    with get_connection() as conn:
+        conn.execute(
+            """
+            UPDATE jobs
+            SET status     = ?,
+                notes      = ?,
+                applied_at = COALESCE(?, applied_at)
+            WHERE id = ?
+            """,
+            (status, notes, applied_at, job_id),
+        )
+
+
 def update_job_evaluation(
     job_id: str,
     fit_score: int,
