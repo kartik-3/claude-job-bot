@@ -11,6 +11,105 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+def cmd_detect(args: argparse.Namespace) -> None:
+    """Test each company in sources.yaml and report whether its ATS config is reachable.
+    For 404 companies, tries common slug/ATS variations to suggest a fix.
+    """
+    import requests
+    import yaml
+    from scrapers.base import Company
+
+    sources_path = Path("sources.yaml")
+    if not sources_path.exists():
+        logging.error("sources.yaml not found")
+        sys.exit(1)
+
+    companies = [Company(**c) for c in yaml.safe_load(sources_path.read_text())]
+    if args.company:
+        companies = [c for c in companies if args.company.lower() in c.name.lower()]
+
+    GREENHOUSE = "https://boards-api.greenhouse.io/v1/boards/{slug}/jobs"
+    LEVER      = "https://api.lever.co/v0/postings/{slug}"
+    ASHBY      = "https://api.ashbyhq.com/posting-api/job-board/{slug}"
+
+    def probe(url: str) -> bool:
+        try:
+            r = requests.get(url, timeout=10)
+            return r.ok
+        except Exception:
+            return False
+
+    def slug_variants(name: str, current: str | None) -> list[str]:
+        bare    = name.lower().replace(" ", "").replace("-", "").replace(".", "")
+        hyphen  = name.lower().replace(" ", "-").replace(".", "")
+        seen, out = set(), []
+        for s in [current or "", bare, hyphen, name.lower()]:
+            if s and s not in seen:
+                seen.add(s)
+                out.append(s)
+        return out
+
+    SKIP_ATS = {"workday", "custom"}
+    results = []
+
+    for co in companies:
+        if co.ats in SKIP_ATS:
+            results.append((co.name, co.ats, co.slug, "skip", None))
+            continue
+
+        # Check if current config is live
+        templates = {"greenhouse": GREENHOUSE, "lever": LEVER, "ashby": ASHBY}
+        tmpl = templates.get(co.ats)
+        current_ok = tmpl and co.slug and probe(tmpl.format(slug=co.slug))
+
+        if current_ok:
+            results.append((co.name, co.ats, co.slug, "ok", None))
+            continue
+
+        # Try all ATS × slug variations to find what works
+        found = []
+        for slug in slug_variants(co.name, co.slug):
+            for ats, tmpl in templates.items():
+                if probe(tmpl.format(slug=slug)):
+                    found.append((ats, slug))
+        results.append((co.name, co.ats, co.slug, "fail", found))
+
+    # --- Print report ---
+    ok = [r for r in results if r[3] == "ok"]
+    fail = [r for r in results if r[3] == "fail"]
+    skip = [r for r in results if r[3] == "skip"]
+
+    print(f"\n{'='*60}")
+    print(f"ATS Detection Report — {len(companies)} companies checked")
+    print(f"{'='*60}")
+    print(f"  Working : {len(ok)}")
+    print(f"  Broken  : {len(fail)}")
+    print(f"  Skipped : {len(skip)}  (workday/custom — need manual slug)\n")
+
+    if fail:
+        print("BROKEN — update your sources.yaml:")
+        for name, ats, slug, _, found in fail:
+            current = f"{ats}/{slug}" if slug else ats
+            if found:
+                suggestions = "  OR  ".join(f"{a}/{s}" for a, s in found)
+                print(f"  {name:<30}  currently: {current}")
+                print(f"  {'':30}  suggest  : {suggestions}")
+            else:
+                print(f"  {name:<30}  currently: {current}  → no match found (may be workday/custom)")
+
+    if skip:
+        print("\nSKIPPED (workday/custom) — add correct slug to sources.yaml:")
+        print("  See scrapers/workday.py for instructions on finding Workday slugs.")
+        for name, ats, slug, _, _ in skip:
+            slug_str = f"  slug: {slug}" if slug else "  slug: ??? (needs to be set)"
+            print(f"  {name:<30}  {ats}{slug_str}")
+
+    if ok:
+        print(f"\nWORKING ({len(ok)} companies):")
+        for name, ats, slug, _, _ in ok:
+            print(f"  {name:<30}  {ats}/{slug}")
+
+
 def cmd_discover(args: argparse.Namespace) -> None:
     import yaml
     from db import init_db, upsert_job
@@ -121,8 +220,71 @@ def cmd_apply(args: argparse.Namespace) -> None:
     print(f"[{mode}] Applied: {applied} | Dry-run complete: {dry_run_count} | Needs manual: {manual}")
 
 
+def cmd_report(args: argparse.Namespace) -> None:
+    import csv as csv_mod
+
+    from db import get_evaluated_jobs, init_db
+
+    init_db()
+
+    jobs = get_evaluated_jobs(status_filter=args.status or None)
+    if not jobs:
+        print("No evaluated jobs found.")
+        return
+
+    if args.output:
+        out_path = Path(args.output)
+        with out_path.open("w", newline="", encoding="utf-8") as f:
+            writer = csv_mod.DictWriter(f, fieldnames=["score", "status", "company", "title", "url", "notes"])
+            writer.writeheader()
+            for job in jobs:
+                writer.writerow({
+                    "score":   job["fit_score"] if job["fit_score"] is not None else "",
+                    "status":  job["status"] or "",
+                    "company": job["company"] or "",
+                    "title":   job["title"] or "",
+                    "url":     job["apply_url"] or job["url"] or "",
+                    "notes":   job["notes"] or "",
+                })
+        print(f"Saved {len(jobs)} jobs to {out_path}")
+        return
+
+    # Terminal table
+    W_SCORE  = 6
+    W_STATUS = 16
+    W_CO     = 20
+    W_TITLE  = 40
+
+    header = (
+        f"{'Score':>{W_SCORE}}  "
+        f"{'Status':<{W_STATUS}}  "
+        f"{'Company':<{W_CO}}  "
+        f"{'Title':<{W_TITLE}}  "
+        f"URL"
+    )
+    print(header)
+    print("-" * len(header))
+
+    for job in jobs:
+        score = job["fit_score"]
+        score_str = f"{score:>5}" if score is not None else "    -"
+        status = (job["status"] or "")[:W_STATUS]
+        company = (job["company"] or "")[:W_CO]
+        title   = (job["title"]   or "")[:W_TITLE]
+        url     = job["apply_url"] or job["url"] or ""
+        print(
+            f"{score_str}  "
+            f"{status:<{W_STATUS}}  "
+            f"{company:<{W_CO}}  "
+            f"{title:<{W_TITLE}}  "
+            f"{url}"
+        )
+
+    print(f"\n{len(jobs)} jobs listed.")
+
+
 def cmd_status(args: argparse.Namespace) -> None:
-    from db import count_jobs, init_db
+    from db import count_jobs, get_company_stats, init_db
 
     init_db()
     total = count_jobs()
@@ -136,6 +298,22 @@ def cmd_status(args: argparse.Namespace) -> None:
             if n:
                 print(f"  {status}: {n}")
 
+    if getattr(args, "companies", False):
+        stats = get_company_stats()
+        if not stats:
+            return
+        print(f"\n{len(stats)} companies scraped:\n")
+        W_CO  = max(len(s["company"]) for s in stats)
+        W_ATS = max(len(s["ats"])     for s in stats)
+        header = f"  {'Company':<{W_CO}}  {'ATS':<{W_ATS}}  {'Total':>5}  {'Apply':>5}  {'Reject':>6}  {'Pending':>7}"
+        print(header)
+        print("  " + "-" * (len(header) - 2))
+        for s in stats:
+            print(
+                f"  {s['company']:<{W_CO}}  {s['ats']:<{W_ATS}}"
+                f"  {s['total']:>5}  {s['to_apply']:>5}  {s['rejected']:>6}  {s['pending']:>7}"
+            )
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -147,6 +325,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     sub = parser.add_subparsers(dest="command", required=True)
+
+    detect_p = sub.add_parser("detect", help="Test ATS configs in sources.yaml and suggest fixes for broken ones")
+    detect_p.add_argument("--company", default=None, metavar="NAME",
+                          help="Test only companies whose name contains this string")
 
     sub.add_parser("discover", help="Pull new jobs from ATS sources into the DB")
 
@@ -167,7 +349,25 @@ def build_parser() -> argparse.ArgumentParser:
     )
     apply_p.add_argument("--ats", default=None, help="Limit to one ATS platform")
 
-    sub.add_parser("status", help="Show counts by status")
+    status_p = sub.add_parser("status", help="Show counts by status")
+    status_p.add_argument(
+        "--companies",
+        action="store_true",
+        help="Also show a per-company breakdown of jobs scraped",
+    )
+
+    report_p = sub.add_parser("report", help="Show evaluated jobs ranked by fit score")
+    report_p.add_argument(
+        "--status",
+        default=None,
+        help="Filter by status (e.g. should_apply, should_not_apply, tailored)",
+    )
+    report_p.add_argument(
+        "--output",
+        default=None,
+        metavar="FILE",
+        help="Save as CSV instead of printing (e.g. --output results.csv)",
+    )
 
     return parser
 
@@ -180,11 +380,13 @@ def main() -> None:
     logging.basicConfig(format="%(levelname)s %(message)s", level=level)
 
     commands = {
+        "detect": cmd_detect,
         "discover": cmd_discover,
         "evaluate": cmd_evaluate,
         "tailor": cmd_tailor,
         "apply": cmd_apply,
         "status": cmd_status,
+        "report": cmd_report,
     }
     commands[args.command](args)
 

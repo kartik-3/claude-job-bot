@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     evaluation_json      TEXT,
     tailored_resume_path TEXT,
     applied_at           TEXT,
+    screenshot_path      TEXT,
     notes                TEXT,
     CHECK (status IN (
         'new', 'evaluated', 'should_apply', 'should_not_apply',
@@ -48,6 +49,8 @@ def _migrate(conn: sqlite3.Connection) -> None:
     existing = {row[1] for row in conn.execute("PRAGMA table_info(jobs)")}
     if "cover_letter_path" not in existing:
         conn.execute("ALTER TABLE jobs ADD COLUMN cover_letter_path TEXT")
+    if "screenshot_path" not in existing:
+        conn.execute("ALTER TABLE jobs ADD COLUMN screenshot_path TEXT")
 
 
 def init_db() -> None:
@@ -96,6 +99,55 @@ def count_jobs(status: str | None = None) -> int:
         return row[0]
 
 
+def get_company_stats() -> list[dict]:
+    """Return per-company job counts, sorted by total jobs descending."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT
+                company,
+                ats,
+                COUNT(*) AS total,
+                SUM(CASE WHEN status = 'should_apply'     THEN 1 ELSE 0 END) AS to_apply,
+                SUM(CASE WHEN status = 'should_not_apply' THEN 1 ELSE 0 END) AS rejected,
+                SUM(CASE WHEN status = 'new'              THEN 1 ELSE 0 END) AS pending
+            FROM jobs
+            GROUP BY company, ats
+            ORDER BY total DESC, company
+            """
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+
+def get_evaluated_jobs(status_filter: str | None = None) -> list[dict]:
+    """Return all jobs that have been evaluated, sorted by fit_score descending.
+
+    Pass a status_filter (e.g. 'should_apply') to narrow results.
+    Jobs with no fit_score (hard-gated) sort to the bottom.
+    """
+    with get_connection() as conn:
+        if status_filter:
+            rows = conn.execute(
+                """
+                SELECT company, title, status, fit_score, url, apply_url, notes
+                FROM jobs
+                WHERE status = ?
+                ORDER BY fit_score DESC, company, title
+                """,
+                (status_filter,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                SELECT company, title, status, fit_score, url, apply_url, notes
+                FROM jobs
+                WHERE status != 'new'
+                ORDER BY fit_score DESC, company, title
+                """,
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+
 def get_jobs_by_status(status: str) -> list[dict]:
     with get_connection() as conn:
         rows = conn.execute(
@@ -137,12 +189,13 @@ def update_job_applied(
         conn.execute(
             """
             UPDATE jobs
-            SET status     = ?,
-                notes      = ?,
-                applied_at = COALESCE(?, applied_at)
+            SET status          = ?,
+                notes           = ?,
+                applied_at      = COALESCE(?, applied_at),
+                screenshot_path = COALESCE(?, screenshot_path)
             WHERE id = ?
             """,
-            (status, notes, applied_at, job_id),
+            (status, notes, applied_at, screenshot_path, job_id),
         )
 
 

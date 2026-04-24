@@ -1,10 +1,53 @@
 # Copy to profile/preferences.yaml and fill in your real preferences.
 
 target_roles:
-  - Senior Software Engineer
+  # Core software / backend
   - Software Engineer
+  - Software Developer
   - Backend Engineer
-  # Add more target titles here
+  - Backend Developer
+  - Software Development Engineer   # Amazon SDE style
+  - Member of Technical Staff       # Anthropic / OpenAI style
+
+  # Full-stack / frontend
+  - Full Stack Engineer
+  - Full Stack Developer
+  - Frontend Engineer
+  - Frontend Developer
+
+  # Specialised engineering
+  - Platform Engineer
+  - Infrastructure Engineer
+  - Site Reliability Engineer
+  - DevOps Engineer
+  - Cloud Engineer
+  - ML Engineer
+  - Machine Learning Engineer
+  - AI Engineer
+  - Data Engineer
+  - Mobile Engineer
+  - iOS Engineer
+  - Android Engineer
+
+  # Language / framework-specific
+  - Python Engineer
+  - Python Developer
+  - Java Engineer
+  - Java Developer
+  - JavaScript Developer
+  - TypeScript Engineer
+  - Node Developer
+  - React Engineer
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Customisation note
+  # ──────────────────────────────────────────────────────────────────────────
+  # Matching rule: ALL tokens in an entry must appear in the job title.
+  #   "Software Engineer" matches "Senior Software Engineer" ✓
+  #   "Software Engineer" does NOT match "Security Engineer" ✗
+  # Add entries here to widen the filter; remove entries to narrow it.
+  # If a role keeps slipping through that shouldn't, add it to excluded_titles
+  # below instead.
 
 locations:
   - "[City 1], [Country]"
