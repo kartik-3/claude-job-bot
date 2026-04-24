@@ -2,11 +2,13 @@ from scrapers.ashby import AshbyScraper
 from scrapers.base import BaseScraper, Company, Job
 from scrapers.greenhouse import GreenhouseScraper
 from scrapers.lever import LeverScraper
+from scrapers.workday import WorkdayScraper
 
 _REGISTRY: dict[str, type[BaseScraper]] = {
     "greenhouse": GreenhouseScraper,
     "lever": LeverScraper,
     "ashby": AshbyScraper,
+    "workday": WorkdayScraper,
 }
 
 __all__ = ["Company", "Job", "get_scraper"]

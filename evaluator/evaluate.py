@@ -1,10 +1,10 @@
 import json
 import logging
 import os
+import subprocess
 from pathlib import Path
 
 import yaml
-from anthropic import Anthropic
 from pydantic import BaseModel, ValidationError
 
 from .prompts import EVALUATION_PROMPT, SYSTEM_PROMPT
@@ -12,6 +12,58 @@ from .prompts import EVALUATION_PROMPT, SYSTEM_PROMPT
 logger = logging.getLogger(__name__)
 
 _MODEL = "claude-sonnet-4-5"
+
+
+def _call_llm(system: str, user_msg: str, max_tokens: int = 1024) -> str | None:
+    """Call Claude. Uses Anthropic API if ANTHROPIC_API_KEY is set, otherwise falls
+    back to the `claude` CLI (already authenticated via Claude Code)."""
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        try:
+            from anthropic import Anthropic
+            client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+            response = client.messages.create(
+                model=_MODEL,
+                max_tokens=max_tokens,
+                system=system,
+                messages=[{"role": "user", "content": user_msg}],
+            )
+            return response.content[0].text
+        except Exception as exc:
+            logger.warning("Anthropic API call failed: %s", exc)
+            return None
+
+    # No API key — use the claude CLI (Claude Code's managed auth)
+    full_prompt = f"{system}\n\n---\n\n{user_msg}"
+    try:
+        result = subprocess.run(
+            ["claude", "-p", full_prompt],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+        logger.warning("claude CLI non-zero exit: %s", result.stderr[:200])
+    except FileNotFoundError:
+        logger.error("No LLM available: set ANTHROPIC_API_KEY or install the claude CLI")
+    except subprocess.TimeoutExpired:
+        logger.error("claude CLI timed out")
+    return None
+
+
+def _extract_json(text: str) -> str:
+    """Pull the first complete JSON object out of a response, tolerating any surrounding prose."""
+    text = text.strip()
+    # Strip markdown fences if present
+    if text.startswith("```"):
+        text = text.split("\n", 1)[-1]
+        text = text.rsplit("```", 1)[0].strip()
+    # Find first { ... last }
+    start = text.find("{")
+    end = text.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        return text[start : end + 1]
+    return text
 
 # Title tokens that indicate a role above the candidate's max seniority
 _OVER_SENIORITY = (
@@ -100,6 +152,27 @@ def _location_passes(job: dict, prefs: Preferences) -> bool:
     return False
 
 
+def _tokenize(text: str) -> set[str]:
+    return set(text.lower().replace(",", " ").replace("-", " ").replace("/", " ").split())
+
+
+def _role_relevant(title: str, prefs: Preferences) -> bool:
+    """Return True if every token in at least one target_role appears in the title.
+
+    "Software Engineer" matches "Senior Software Engineer" ✓
+    "Software Engineer" does NOT match "Security Engineer" or "Finance Manager" ✗
+    If target_roles is empty, all titles pass (no filter configured).
+    """
+    if not prefs.target_roles:
+        return True
+    title_tokens = _tokenize(title)
+    for role in prefs.target_roles:
+        role_tokens = _tokenize(role)
+        if role_tokens and role_tokens.issubset(title_tokens):
+            return True
+    return False
+
+
 def hard_gate(job: dict, prefs: Preferences) -> tuple[bool, str]:
     """Return (passes, reason). passes=False means skip LLM evaluation."""
     title = job.get("title", "")
@@ -108,6 +181,9 @@ def hard_gate(job: dict, prefs: Preferences) -> tuple[bool, str]:
     for excluded in prefs.excluded_titles:
         if excluded.lower() in title_lower:
             return False, f"excluded title: {excluded}"
+
+    if not _role_relevant(title, prefs):
+        return False, f"title not relevant to target roles: {title}"
 
     for token in _OVER_SENIORITY:
         if token in title_lower:
@@ -128,20 +204,12 @@ def hard_gate(job: dict, prefs: Preferences) -> tuple[bool, str]:
 # LLM evaluation
 # ---------------------------------------------------------------------------
 
-def _strip_fences(text: str) -> str:
-    text = text.strip()
-    if text.startswith("```"):
-        text = text.split("\n", 1)[-1]
-        text = text.rsplit("```", 1)[0]
-    return text.strip()
-
 
 def _call_claude(
     resume: str,
     job_description: str,
     prefs: Preferences,
 ) -> EvaluationResult | None:
-    client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
     user_msg = EVALUATION_PROMPT.format(
         resume=resume,
         job_description=job_description or "(no description provided)",
@@ -153,15 +221,11 @@ def _call_claude(
     )
     for attempt in range(2):
         try:
-            response = client.messages.create(
-                model=_MODEL,
-                max_tokens=1024,
-                system=SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": user_msg}],
-            )
-            raw = _strip_fences(response.content[0].text)
-            return EvaluationResult(**json.loads(raw))
-        except (ValidationError, json.JSONDecodeError, KeyError, IndexError) as exc:
+            raw = _call_llm(SYSTEM_PROMPT, user_msg, max_tokens=1024)
+            if raw is None:
+                raise RuntimeError("LLM returned no output")
+            return EvaluationResult(**json.loads(_extract_json(raw)))
+        except (ValidationError, json.JSONDecodeError, KeyError, IndexError, RuntimeError) as exc:
             if attempt == 0:
                 logger.warning("Evaluation parse failed (attempt 1), retrying: %s", exc)
             else:

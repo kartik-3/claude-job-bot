@@ -14,7 +14,8 @@ A personal job application bot that discovers roles from target companies, score
 | 2 | `evaluate` | Scores each new job against your resume via Claude; marks `should_apply` / `should_not_apply` |
 | 3 | `tailor` | Generates a tailored resume PDF + cover letter per good-fit job; saves a `.diff` for review |
 | 4 | `apply` | Fills and submits ATS forms via Playwright; aborts on unknown fields |
-| 5 | `status` | Shows job counts by status; `outputs/manual_queue.md` lists jobs needing manual attention |
+| — | `status` | Shows job counts by status |
+| — | `report` | Shows all evaluated jobs ranked by fit score; exportable to CSV |
 
 ---
 
@@ -56,23 +57,44 @@ Create your profile (gitignored — never committed):
 
 ```bash
 mkdir -p profile/cover_letters
-cp profile_templates/resume.md              profile/resume.md
-cp profile_templates/preferences.yaml       profile/preferences.yaml
-cp profile_templates/field_answers.yaml     profile/field_answers.yaml
+cp profile_templates/resume.example.md                  profile/resume.md
+cp profile_templates/preferences.example.yaml           profile/preferences.yaml
+cp profile_templates/field_answers.example.yaml         profile/field_answers.yaml
+cp profile_templates/cover_letter_template.example.md   profile_templates/cover_letter_template.md
+cp profile_templates/cover_letter_fallback.example.md   profile_templates/cover_letter_fallback.md
 # Edit each file with your real information
-# cover_letter_template.md and cover_letter_fallback.md are used directly
-# from profile_templates/ by the tailor and applier modules
 ```
 
 Edit `sources.yaml` to add the companies you want to track.
+
+**Finding the right slug for each ATS:**
+
+| ATS | How to find the slug |
+|-----|---------------------|
+| Greenhouse | The slug is in the careers URL: `boards.greenhouse.io/{slug}/jobs` |
+| Lever | The slug is in the URL: `jobs.lever.co/{slug}` |
+| Ashby | The slug is in the URL: `jobs.ashbyhq.com/{slug}` |
+| Workday | Visit the careers page → find the redirect to `{tenant}.wd{n}.myworkdayjobs.com/{site}/jobs` → slug format is `{tenant}.wd{n}/{site}` (e.g. `microsoft.wd1/MSFTExternal`) |
+
+If you're unsure which ATS a company uses, run the auto-detector (see below).
 
 ---
 
 ## Running the bot
 
 ```bash
-# Check database state
+# Check database state (totals by pipeline status)
 python main.py status
+
+# Show per-company breakdown — how many jobs scraped per company,
+# and how many are to-apply / rejected / still pending evaluation
+python main.py status --companies
+
+# Check which companies in sources.yaml are reachable and suggest fixes for broken ones
+python main.py detect
+
+# Test a specific company only
+python main.py detect --company Uber
 
 # Pull new jobs from all sources in sources.yaml
 python main.py discover
@@ -97,6 +119,31 @@ python main.py apply --ats greenhouse
 
 # Verbose logging
 python main.py --verbose discover
+```
+
+### Viewing and exporting results
+
+```bash
+# Show all evaluated jobs ranked by fit score (terminal table)
+python main.py report
+
+# Filter by status
+python main.py report --status should_apply        # only recommended roles
+python main.py report --status should_not_apply    # only rejected roles (useful for sanity-checking)
+python main.py report --status tailored            # roles with tailored resumes ready
+python main.py report --status needs_manual        # roles that need manual application
+
+# Export to CSV — opens directly in Excel or Google Sheets
+python main.py report --output results.csv
+python main.py report --status should_apply --output shortlist.csv
+
+# The CSV columns are:
+#   score     — fit score 0–100 (blank if rejected by hard gate before LLM scoring)
+#   status    — current pipeline status
+#   company   — company name
+#   title     — job title
+#   url       — direct link to the job / application page
+#   notes     — one-line reasoning from Claude, or hard-gate rejection reason
 ```
 
 After each run, check `outputs/manual_queue.md` for jobs that need manual attention (auth-required ATS, unknown form fields, CAPTCHAs).

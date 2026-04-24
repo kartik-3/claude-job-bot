@@ -15,7 +15,7 @@ import re
 import time
 from pathlib import Path
 
-from applier.base import detect_fields, take_screenshot
+from applier.base import detect_fields, select_option, take_screenshot
 from applier.field_matcher import match
 
 logger = logging.getLogger(__name__)
@@ -83,20 +83,7 @@ def _fill_custom_fields(
 
 def _set_field(page: object, el: object, tag: str, value: str) -> None:
     if tag == "select":
-        # Try exact match first, then partial
-        options = el.query_selector_all("option")
-        for opt in options:
-            if opt.inner_text().strip().lower() == value.lower():
-                el.select_option(value=opt.get_attribute("value"))
-                return
-        # partial
-        for opt in options:
-            if value.lower() in opt.inner_text().strip().lower():
-                el.select_option(value=opt.get_attribute("value"))
-                return
-        logger.warning("select: no matching option for value '%s'", value)
-    elif tag == "textarea":
-        el.fill(value)
+        select_option(el, value)
     else:
         el.fill(value)
 

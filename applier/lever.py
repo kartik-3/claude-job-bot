@@ -7,7 +7,7 @@ import logging
 import time
 from pathlib import Path
 
-from applier.base import _get_label, _unique_selector, take_screenshot
+from applier.base import _get_label, _unique_selector, select_option, take_screenshot
 from applier.field_matcher import match
 
 logger = logging.getLogger(__name__)
@@ -99,7 +99,7 @@ def apply_lever(
         value = match(label, field_answers, input_type=input_type, required=required)
         if value is not None:
             if tag == "select":
-                _select_option(el, value)
+                select_option(el, value)
             else:
                 el.fill(str(value))
         elif required:
@@ -141,18 +141,6 @@ def apply_lever(
         result["notes"] = f"submit failed: {exc}"
 
     return result
-
-
-def _select_option(el: object, value: str) -> None:
-    options = el.query_selector_all("option")
-    for opt in options:
-        if opt.inner_text().strip().lower() == value.lower():
-            el.select_option(value=opt.get_attribute("value"))
-            return
-    for opt in options:
-        if value.lower() in opt.inner_text().strip().lower():
-            el.select_option(value=opt.get_attribute("value"))
-            return
 
 
 def _captcha_detected(page: object) -> bool:

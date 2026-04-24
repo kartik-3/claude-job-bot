@@ -118,6 +118,20 @@ def _get_label(page: object, el: object) -> str:
     return name.replace("_", " ").replace("-", " ").strip()
 
 
+def select_option(el: object, value: str) -> None:
+    """Select a dropdown option by exact then partial text match."""
+    options = el.query_selector_all("option")
+    for opt in options:
+        if opt.inner_text().strip().lower() == value.lower():
+            el.select_option(value=opt.get_attribute("value"))
+            return
+    for opt in options:
+        if value.lower() in opt.inner_text().strip().lower():
+            el.select_option(value=opt.get_attribute("value"))
+            return
+    logger.warning("select: no matching option for value '%s'", value)
+
+
 def _unique_selector(el: object) -> str:
     """Return a usable CSS selector for this element."""
     el_id = el.get_attribute("id")

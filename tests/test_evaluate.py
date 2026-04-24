@@ -18,7 +18,20 @@ from evaluator.evaluate import (
 # ---------------------------------------------------------------------------
 
 PREFS_DATA = {
-    "target_roles": ["Software Engineer", "Backend Engineer"],
+    "target_roles": [
+        "Software Engineer", "Software Developer",
+        "Backend Engineer", "Backend Developer",
+        "Frontend Engineer", "Frontend Developer",
+        "Full Stack Engineer", "Full Stack Developer",
+        "Platform Engineer", "Infrastructure Engineer",
+        "Site Reliability Engineer", "DevOps Engineer", "Cloud Engineer",
+        "ML Engineer", "Machine Learning Engineer", "AI Engineer",
+        "Data Engineer", "Mobile Engineer", "iOS Engineer", "Android Engineer",
+        "Python Engineer", "Python Developer",
+        "Java Engineer", "Java Developer",
+        "JavaScript Developer", "TypeScript Engineer", "Node Developer",
+        "Software Development Engineer", "Member of Technical Staff",
+    ],
     "locations": [
         "Hyderabad, India", "Bangalore/Bengaluru, India", "New Delhi, India",
         "India", "Remote",
@@ -169,11 +182,40 @@ def test_location_passes_unknown(prefs):
     "Full Stack Engineer",
     "Software Engineer 2",
     "Software Engineer II",
-    "Associate Software Engineer",  # "associate" alone is ambiguous — should pass
+    "Associate Software Engineer",
+    "Python Engineer",
+    "Python Developer",
+    "Platform Engineer",
+    "DevOps Engineer",
+    "ML Engineer",
+    "Data Engineer",
+    "Software Development Engineer",
 ])
 def test_good_title_passes(prefs, title):
     passes, reason = hard_gate(make_job(title=title), prefs)
     assert passes, f"Expected pass for '{title}', got: {reason}"
+
+
+# ---------------------------------------------------------------------------
+# Hard gate — irrelevant roles rejected by role-relevance check
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("title", [
+    "Finance & Strategy, GTM",
+    "Account Executive",
+    "Marketing Manager",
+    "Security Engineer",
+    "Data Center Engineer",
+    "Sales Development Representative",
+    "Product Operations Manager",
+    "Recruiter",
+    "Legal Counsel",
+    "Business Analyst",
+])
+def test_irrelevant_title_rejected(prefs, title):
+    passes, reason = hard_gate(make_job(title=title), prefs)
+    assert not passes, f"Expected rejection for '{title}'"
+    assert "not relevant" in reason
 
 
 # ---------------------------------------------------------------------------

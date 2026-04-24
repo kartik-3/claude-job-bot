@@ -2,11 +2,9 @@ import difflib
 import logging
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
-
-from anthropic import Anthropic
-from pydantic import ValidationError
 
 from .prompts import (
     COVER_LETTER_PROMPT,
@@ -19,6 +17,43 @@ from .render import markdown_to_pdf
 logger = logging.getLogger(__name__)
 
 _MODEL = "claude-sonnet-4-5"
+
+
+def _call_llm(system: str, user_msg: str, max_tokens: int = 2048) -> str | None:
+    """Call Claude. Uses Anthropic API if ANTHROPIC_API_KEY is set, otherwise falls
+    back to the `claude` CLI (already authenticated via Claude Code)."""
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        try:
+            from anthropic import Anthropic
+            client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+            response = client.messages.create(
+                model=_MODEL,
+                max_tokens=max_tokens,
+                system=system,
+                messages=[{"role": "user", "content": user_msg}],
+            )
+            return response.content[0].text
+        except Exception as exc:
+            logger.warning("Anthropic API call failed: %s", exc)
+            return None
+
+    # No API key — use the claude CLI (Claude Code's managed auth)
+    full_prompt = f"{system}\n\n---\n\n{user_msg}"
+    try:
+        result = subprocess.run(
+            ["claude", "-p", full_prompt],
+            capture_output=True,
+            text=True,
+            timeout=180,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+        logger.warning("claude CLI non-zero exit: %s", result.stderr[:200])
+    except FileNotFoundError:
+        logger.error("No LLM available: set ANTHROPIC_API_KEY or install the claude CLI")
+    except subprocess.TimeoutExpired:
+        logger.error("claude CLI timed out")
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -55,21 +90,14 @@ def _write_diff(original: str, tailored: str, diff_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 def _call_claude(system: str, user: str) -> str | None:
-    client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
     for attempt in range(2):
-        try:
-            response = client.messages.create(
-                model=_MODEL,
-                max_tokens=2048,
-                system=system,
-                messages=[{"role": "user", "content": user}],
-            )
-            return response.content[0].text.strip()
-        except Exception as exc:
-            if attempt == 0:
-                logger.warning("Claude call failed (attempt 1), retrying: %s", exc)
-            else:
-                logger.error("Claude call failed (attempt 2), skipping: %s", exc)
+        result = _call_llm(system, user, max_tokens=2048)
+        if result is not None:
+            return result.strip()
+        if attempt == 0:
+            logger.warning("Claude call failed (attempt 1), retrying")
+        else:
+            logger.error("Claude call failed (attempt 2), skipping")
     return None
 
 

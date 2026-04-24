@@ -8,8 +8,7 @@ Matching order:
 import logging
 import os
 import re
-
-from anthropic import Anthropic
+import subprocess
 
 from .prompts import FIELD_MATCH_PROMPT, FIELD_MATCH_SYSTEM_PROMPT
 
@@ -101,9 +100,44 @@ def _token_overlap(label: str, key: str) -> float:
     return len(label_tokens & key_tokens) / len(label_tokens)
 
 
+def _call_llm(system: str, user_msg: str) -> str | None:
+    """Call Claude. Uses Anthropic API if ANTHROPIC_API_KEY is set, otherwise falls
+    back to the `claude` CLI (already authenticated via Claude Code)."""
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        try:
+            from anthropic import Anthropic
+            client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+            response = client.messages.create(
+                model=_MODEL,
+                max_tokens=32,
+                system=system,
+                messages=[{"role": "user", "content": user_msg}],
+            )
+            return response.content[0].text.strip()
+        except Exception as exc:
+            logger.warning("Anthropic API call failed: %s", exc)
+            return None
+
+    full_prompt = f"{system}\n\n---\n\n{user_msg}"
+    try:
+        result = subprocess.run(
+            ["claude", "-p", full_prompt],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+        logger.warning("claude CLI non-zero exit: %s", result.stderr[:200])
+    except FileNotFoundError:
+        logger.error("No LLM available: set ANTHROPIC_API_KEY or install the claude CLI")
+    except subprocess.TimeoutExpired:
+        logger.error("claude CLI timed out")
+    return None
+
+
 def _claude_match(label: str, input_type: str, required: bool, keys: list[str]) -> str:
     """Ask Claude to pick the best key. Returns a key name or UNKNOWN."""
-    client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
     user_msg = FIELD_MATCH_PROMPT.format(
         label=label,
         input_type=input_type,
@@ -111,25 +145,17 @@ def _claude_match(label: str, input_type: str, required: bool, keys: list[str]) 
         keys="\n".join(f"- {k}" for k in keys),
     )
     for attempt in range(2):
-        try:
-            response = client.messages.create(
-                model=_MODEL,
-                max_tokens=32,
-                system=FIELD_MATCH_SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": user_msg}],
-            )
-            answer = response.content[0].text.strip()
-            # Accept only valid keys or UNKNOWN
+        answer = _call_llm(FIELD_MATCH_SYSTEM_PROMPT, user_msg)
+        if answer is not None:
             if answer in keys:
                 return answer
             if answer.upper() == UNKNOWN:
                 return UNKNOWN
             logger.debug("Claude returned unexpected value '%s' for label '%s'", answer, label)
-        except Exception as exc:
-            if attempt == 0:
-                logger.warning("Field match Claude call failed (attempt 1): %s", exc)
-            else:
-                logger.error("Field match Claude call failed (attempt 2): %s", exc)
+        if attempt == 0:
+            logger.warning("Field match Claude call failed (attempt 1)")
+        else:
+            logger.error("Field match Claude call failed (attempt 2)")
     return UNKNOWN
 
 
