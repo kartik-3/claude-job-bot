@@ -1,4 +1,5 @@
 anthropic>=0.49.0          # Claude API for evaluation, tailoring, field matching
+django>=5.0                # web dashboard API server
 playwright>=1.51.0         # browser automation for auto-apply
 pyyaml>=6.0.2              # human-editable config files
 sqlite-utils>=3.38         # SQLite schema + query helpers

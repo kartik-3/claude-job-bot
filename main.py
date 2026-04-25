@@ -315,6 +315,20 @@ def cmd_status(args: argparse.Namespace) -> None:
             )
 
 
+def cmd_serve(args: argparse.Namespace) -> None:
+    import os
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "dashboard.settings")
+
+    from db import init_db
+    init_db()
+
+    from django.core.management import execute_from_command_line
+    addr = f"{args.host}:{args.port}"
+    print(f"API running at http://{addr}/api/jobs/")
+    print(f"Start the React frontend: cd dashboard/frontend && npm install && npm run dev")
+    execute_from_command_line(["manage.py", "runserver", addr, "--noreload"])
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="job-bot",
@@ -356,6 +370,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="Also show a per-company breakdown of jobs scraped",
     )
 
+    serve_p = sub.add_parser("serve", help="Start the Django API server for the dashboard")
+    serve_p.add_argument("--host", default="127.0.0.1", help="Bind host (default: 127.0.0.1)")
+    serve_p.add_argument("--port", default=8000, type=int, help="Bind port (default: 8000)")
+
     report_p = sub.add_parser("report", help="Show evaluated jobs ranked by fit score")
     report_p.add_argument(
         "--status",
@@ -385,6 +403,7 @@ def main() -> None:
         "evaluate": cmd_evaluate,
         "tailor": cmd_tailor,
         "apply": cmd_apply,
+        "serve": cmd_serve,
         "status": cmd_status,
         "report": cmd_report,
     }
