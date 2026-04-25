@@ -10,18 +10,20 @@ A personal job application bot that discovers roles from target companies, score
 
 | Phase | Command | What happens |
 |-------|---------|-------------|
-| 1 | `discover` | Fetches current openings from `sources.yaml` into SQLite |
-| 2 | `evaluate` | Scores each new job against your resume via Claude; marks `should_apply` / `should_not_apply` |
-| 3 | `tailor` | Generates a tailored resume PDF + cover letter per good-fit job; saves a `.diff` for review |
+| 1 | `discover` | Fetches current openings from `sources.yaml`; pre-filters by title, location, and tech keywords using your preferences before storing |
+| 2 | `evaluate` | Hard-gates remaining jobs (seniority, excluded titles); scores survivors against your resume via Claude; marks `should_apply` / `should_not_apply` |
+| 3 | `tailor` | Generates a tailored resume PDF + cover letter per good-fit job |
 | 4 | `apply` | Fills and submits ATS forms via Playwright; aborts on unknown fields |
 | — | `status` | Shows job counts by status |
 | — | `report` | Shows all evaluated jobs ranked by fit score; exportable to CSV |
+| — | `clear` | Deletes all records from the database (prompts for confirmation) |
+| — | `serve` | Starts the Django API server for the web dashboard |
 
 ---
 
 ## Setup
 
-**Requirements:** Python 3.11+, [Playwright](https://playwright.dev/python/)
+**Requirements:** Python 3.11+, Node.js 18+ (for the dashboard), [Playwright](https://playwright.dev/python/)
 
 ```bash
 git clone https://github.com/kartik-3/claude-job-bot.git
@@ -96,7 +98,7 @@ python main.py detect
 # Test a specific company only
 python main.py detect --company Uber
 
-# Pull new jobs from all sources in sources.yaml
+# Pull new jobs from all sources, pre-filtered by profile/preferences.yaml
 python main.py discover
 
 # Score new jobs against your resume
@@ -119,6 +121,9 @@ python main.py apply --ats greenhouse
 
 # Verbose logging
 python main.py --verbose discover
+
+# Delete all jobs from the database (will prompt for confirmation)
+python main.py clear
 ```
 
 ### Viewing and exporting results
@@ -150,6 +155,65 @@ After each run, check `outputs/manual_queue.md` for jobs that need manual attent
 
 ---
 
+## Web dashboard
+
+A local React + Django dashboard for browsing jobs, filtering, and updating status.
+
+### Start the dashboard
+
+```bash
+# Terminal 1 — Django API (port 8000)
+python main.py serve
+
+# Terminal 2 — React dev server (port 5173)
+cd dashboard/frontend
+npm install   # first time only
+npm run dev
+```
+
+Open [http://localhost:5173](http://localhost:5173).
+
+### Features
+
+- **Stats bar** — live counts for `should_apply`, `tailored`, `applied`, `needs_manual`
+- **Filters** — search by company/title, filter by status, company, or ATS platform
+- **Inline status editing** — change a job's status from the dropdown; saved immediately to SQLite
+- **Color-coded scores** — green ≥ 75, yellow 50–74, red < 50
+- **Links** — direct links to the job listing and application page
+
+---
+
+## How discover pre-filtering works
+
+When `profile/preferences.yaml` exists, `discover` drops non-matching jobs before they reach the database — saving LLM calls and keeping the DB clean.
+
+A job is filtered out if:
+
+| Check | Source field | Configured in |
+|-------|-------------|---------------|
+| Title is in `excluded_titles` | `title` | `preferences.yaml` → `excluded_titles` |
+| Seniority too high (Staff, Principal, VP…) | `title` | built-in list |
+| Seniority too low (Junior, Intern…) | `title` | built-in list + `preferences.yaml` → `seniority.min` |
+| Title doesn't match any `target_roles` | `title` | `preferences.yaml` → `target_roles` |
+| Location doesn't match | `location` | `preferences.yaml` → `locations` + `remote_ok` |
+| Description has none of your `tech_keywords` | `description` | `preferences.yaml` → `tech_keywords` |
+
+Jobs with no description (e.g. Workday) bypass the keyword check and go straight to LLM evaluation.
+
+If `profile/preferences.yaml` is missing, all scraped jobs are stored (with a warning) — same behaviour as before.
+
+---
+
+## How evaluation works
+
+For every `status=new` job that survived discovery filtering, `evaluate` runs two stages:
+
+1. **Hard gate (no LLM)** — re-runs the same title/seniority/location checks as discovery (catches any that slipped through without preferences), plus checks `excluded_titles`. Failures are marked `should_not_apply` instantly with a reason, no API call made.
+
+2. **LLM scoring** — Claude receives your resume, the JD, and your preferences (seniority range, locations, fit threshold). It returns a structured JSON score with matched requirements, concerns, and a `should_apply` boolean. Jobs scoring below `fit_score_threshold` (default 70) are marked `should_not_apply`.
+
+---
+
 ## Project structure
 
 ```
@@ -160,9 +224,13 @@ profile_templates/        # template files to copy from
   cover_letter_template.md   # filled per-job by tailor module (Phase 3)
   cover_letter_fallback.md   # fixed short paragraph for low-priority / char-limited forms
 scrapers/                 # ATS API clients (Greenhouse, Lever, Ashby, Workday)
-evaluator/                # Claude-powered fit scoring
+evaluator/                # Claude-powered fit scoring + pre-filters
+  filters.py              # hard_gate and keyword_matches — used by both discover and evaluate
 tailor/                   # resume tailoring + PDF rendering + cover letter generation
 applier/                  # Playwright form automation
+dashboard/                # web dashboard
+  views.py                # Django API (GET /api/jobs/, PATCH /api/jobs/<id>/)
+  frontend/               # Vite + React app
 db/                       # SQLite database (gitignored)
 outputs/                  # tailored PDFs, screenshots, logs (gitignored)
   cover_letters/          # generated cover letters (gitignored)
