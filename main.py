@@ -480,7 +480,10 @@ def build_parser() -> argparse.ArgumentParser:
         description="Discover, evaluate, tailor, and apply to jobs.",
     )
     parser.add_argument(
-        "--verbose", "-v", action="store_true", help="Enable debug logging"
+        "--log", "-l",
+        default="i",
+        metavar="LEVEL",
+        help="Log level: d=debug  i=info  w=warn  e=error  (default: i)",
     )
 
     sub = parser.add_subparsers(dest="command", required=True)
@@ -537,12 +540,22 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+_LOG_LEVELS: dict[str, int] = {
+    "d": logging.DEBUG,
+    "i": logging.INFO,
+    "w": logging.WARNING,
+    "e": logging.ERROR,
+    "c": logging.CRITICAL,
+}
+
+
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
 
-    level = logging.DEBUG if args.verbose else logging.INFO
-    logging.basicConfig(format="%(levelname)s %(message)s", level=level)
+    level = _LOG_LEVELS.get(args.log.lower(), logging.INFO)
+    fmt = "%(levelname)s [%(name)s] %(message)s" if level == logging.DEBUG else "%(levelname)s %(message)s"
+    logging.basicConfig(format=fmt, level=level)
 
     commands = {
         "detect": cmd_detect,
