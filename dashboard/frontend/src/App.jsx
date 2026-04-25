@@ -19,7 +19,7 @@ export default function App() {
   const [jobs, setJobs] = useState([])
   const [loading, setLoading] = useState(true)
   const [colFilters, setColFilters] = useState({
-    title: '', company: MULTI(), status: MULTI(), ats: MULTI(), location: '',
+    title: '', company: MULTI(), status: MULTI(), ats: MULTI(), location: '', date_added: '',
   })
   const [sort, setSort] = useState({ col: 'fit_score', dir: 'desc' })
   const [page, setPage] = useState(0)
@@ -36,13 +36,14 @@ export default function App() {
   const statusList = useMemo(() => [...new Set(jobs.map(j => j.status))].sort(), [jobs])
 
   const filtered = useMemo(() => {
-    const { title, company, status, ats, location } = colFilters
+    const { title, company, status, ats, location, date_added } = colFilters
     return jobs.filter(j => {
       if (!applyMulti(j.status,  status))  return false
       if (!applyMulti(j.company, company)) return false
       if (!applyMulti(j.ats,     ats))     return false
-      if (title    && !j.title.toLowerCase().includes(title.toLowerCase()))              return false
-      if (location && !(j.location || '').toLowerCase().includes(location.toLowerCase())) return false
+      if (title      && !j.title.toLowerCase().includes(title.toLowerCase()))                   return false
+      if (location   && !(j.location || '').toLowerCase().includes(location.toLowerCase()))     return false
+      if (date_added && !(j.date_added || '').slice(0, 10).includes(date_added))                return false
       return true
     })
   }, [jobs, colFilters])
@@ -79,7 +80,7 @@ export default function App() {
   }, [])
 
   const clearFilters = useCallback(() => {
-    setColFilters({ title: '', company: MULTI(), status: MULTI(), ats: MULTI(), location: '' })
+    setColFilters({ title: '', company: MULTI(), status: MULTI(), ats: MULTI(), location: '', date_added: '' })
   }, [])
 
   const updateStatus = useCallback(async (id, newStatus) => {
@@ -105,7 +106,7 @@ export default function App() {
     return c
   }, [filtered])
 
-  const hasFilters = colFilters.title || colFilters.location ||
+  const hasFilters = colFilters.title || colFilters.location || colFilters.date_added ||
     colFilters.company.values.length || colFilters.status.values.length || colFilters.ats.values.length
 
   let toastTimer
@@ -155,13 +156,16 @@ export default function App() {
                   <ColHeader label="Location" col="location"  sort={sort} onSort={toggleSort}
                     filterValue={colFilters.location} onFilter={v => setColFilter('location', v)}
                     filterType="text" />
-                  <ColHeader label="Posted"   col="posted_at" sort={sort} onSort={toggleSort} />
+                  <ColHeader label="Posted"   col="posted_at"  sort={sort} onSort={toggleSort} />
+                  <ColHeader label="Added"    col="date_added" sort={sort} onSort={toggleSort}
+                    filterValue={colFilters.date_added} onFilter={v => setColFilter('date_added', v)}
+                    filterType="text" />
                   <th className="th-plain">Links</th>
                 </tr>
               </thead>
               <tbody>
                 {paginated.length === 0 ? (
-                  <tr><td colSpan={8} className="empty">No jobs match the current filters.</td></tr>
+                  <tr><td colSpan={9} className="empty">No jobs match the current filters.</td></tr>
                 ) : paginated.map(job => (
                   <tr key={job.id}>
                     <td><ScoreBadge score={job.fit_score} /></td>
@@ -181,7 +185,8 @@ export default function App() {
                       {job.location || ''}
                       {job.remote ? <span className="remote-badge">Remote</span> : null}
                     </td>
-                    <td className="col-date">{job.posted_at ? job.posted_at.slice(0, 10) : '—'}</td>
+                    <td className="col-date">{job.posted_at  ? job.posted_at.slice(0, 10)  : '—'}</td>
+                    <td className="col-date">{job.date_added ? job.date_added.slice(0, 10) : '—'}</td>
                     <td>
                       <div className="link-group">
                         {job.url       && <a href={job.url}       target="_blank" rel="noreferrer">View</a>}
