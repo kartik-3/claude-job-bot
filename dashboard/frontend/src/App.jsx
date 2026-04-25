@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
+import logo from './../public/logo.png';
 
 const STATUSES = [
   'new', 'evaluated', 'should_apply', 'should_not_apply',
@@ -107,7 +108,10 @@ export default function App() {
   return (
     <div className="app">
       <header>
-        <h1>Job Bot</h1>
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <img src={logo} alt="Logo" style={{ width: '40px', marginRight: '10px' }} />
+          <h1>Job Bot</h1>
+        </div>
         <div className="stats">
           {['should_apply', 'tailored', 'applied', 'needs_manual'].map(s => (
             <div key={s} className="stat">{s.replace(/_/g, ' ')}: <strong>{counts[s] || 0}</strong></div>
