@@ -79,3 +79,29 @@ excluded_titles:
   - "QA Engineer"
   - "Test Engineer"
   # Add more titles to exclude
+
+# Keyword filter — applied to the job description (not the title) before LLM scoring.
+# A job passes if its description contains AT LEAST ONE of these keywords (case-insensitive).
+# Jobs with no description (e.g. Workday) bypass this filter and go straight to the LLM.
+# Leave empty ([]) to disable the filter entirely and send all title-matched jobs to the LLM.
+tech_keywords:
+  - python
+  - django
+  - flask
+  - fastapi
+  - rest api
+  - restful
+  - aws
+  - gcp
+  - azure
+  - postgresql
+  - postgres
+  - sql
+  - redis
+  - kafka
+  - docker
+  - kubernetes
+  - microservices
+  - backend
+  - api
+  # Add or remove keywords to tune how aggressively you pre-filter
