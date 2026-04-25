@@ -113,15 +113,25 @@ def cmd_detect(args: argparse.Namespace) -> None:
 def cmd_discover(args: argparse.Namespace) -> None:
     import yaml
     from db import init_db, upsert_job
+    from evaluator.evaluate import load_preferences
+    from evaluator.filters import hard_gate, keyword_matches
     from scrapers import get_scraper
     from scrapers.base import Company
 
     init_db()
 
+    prefs_path = Path("profile/preferences.yaml")
+    prefs = None
+    if prefs_path.exists():
+        prefs = load_preferences(prefs_path)
+        logging.info("Preferences loaded — pre-filtering jobs at scrape time")
+    else:
+        logging.warning("profile/preferences.yaml not found — storing all jobs without filtering")
+
     sources_path = Path("sources.yaml")
     companies = [Company(**c) for c in yaml.safe_load(sources_path.read_text())]
 
-    total_new = 0
+    total_new = total_filtered = 0
     for company in companies:
         scraper = get_scraper(company.ats)
         if scraper is None:
@@ -133,11 +143,32 @@ def cmd_discover(args: argparse.Namespace) -> None:
             logging.error("Failed to fetch jobs for %s: %s", company.name, exc)
             continue
 
-        new_count = sum(upsert_job(job.model_dump()) for job in jobs)
-        logging.info("%s: %d jobs fetched, %d new", company.name, len(jobs), new_count)
-        total_new += new_count
+        kept = filtered = 0
+        for job in jobs:
+            if prefs is not None:
+                passes, reason = hard_gate(job.model_dump(), prefs)
+                if not passes:
+                    logging.debug("Filtered %s — %s [%s]", company.name, job.title, reason)
+                    filtered += 1
+                    continue
+                if not keyword_matches(job.description, prefs):
+                    logging.debug("Filtered %s — %s [no tech keywords]", company.name, job.title)
+                    filtered += 1
+                    continue
+            if upsert_job(job.model_dump()):
+                kept += 1
 
-    print(f"Discovery complete — {total_new} new jobs added")
+        total_new += kept
+        total_filtered += filtered
+        logging.info(
+            "%s: %d jobs fetched, %d stored, %d filtered",
+            company.name, len(jobs), kept, filtered,
+        )
+
+    summary = f"Discovery complete — {total_new} new jobs added"
+    if prefs is not None:
+        summary += f", {total_filtered} filtered by preferences"
+    print(summary)
 
 
 def cmd_evaluate(args: argparse.Namespace) -> None:

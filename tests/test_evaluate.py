@@ -6,12 +6,8 @@ import json
 import pytest
 from pydantic import ValidationError
 
-from evaluator.evaluate import (
-    EvaluationResult,
-    Preferences,
-    _location_passes,
-    hard_gate,
-)
+from evaluator.evaluate import EvaluationResult, Preferences
+from evaluator.filters import _location_passes, hard_gate
 
 # ---------------------------------------------------------------------------
 # Fixtures
