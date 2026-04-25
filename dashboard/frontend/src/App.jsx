@@ -1,14 +1,17 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 
 const STATUSES = [
   'new', 'evaluated', 'should_apply', 'should_not_apply',
   'tailored', 'applied', 'needs_manual', 'blocked', 'error',
 ]
+const PAGE_SIZE = 50
 
 export default function App() {
   const [jobs, setJobs] = useState([])
   const [loading, setLoading] = useState(true)
-  const [filters, setFilters] = useState({ search: '', status: '', company: '', ats: '' })
+  const [colFilters, setColFilters] = useState({ title: '', company: '', status: '', ats: '', location: '' })
+  const [sort, setSort] = useState({ col: 'fit_score', dir: 'desc' })
+  const [page, setPage] = useState(0)
   const [toast, setToast] = useState(null)
 
   useEffect(() => {
@@ -17,22 +20,59 @@ export default function App() {
       .then(data => { setJobs(data); setLoading(false) })
   }, [])
 
-  const filtered = jobs.filter(j => {
-    if (filters.status && j.status !== filters.status) return false
-    if (filters.company && j.company !== filters.company) return false
-    if (filters.ats && j.ats !== filters.ats) return false
-    if (filters.search) {
-      const q = filters.search.toLowerCase()
-      if (!j.company.toLowerCase().includes(q) && !j.title.toLowerCase().includes(q)) return false
-    }
-    return true
-  })
+  const companies = useMemo(() => [...new Set(jobs.map(j => j.company))].sort(), [jobs])
+  const atsList   = useMemo(() => [...new Set(jobs.map(j => j.ats))].sort(), [jobs])
+  const statusList = useMemo(() => [...new Set(jobs.map(j => j.status))].sort(), [jobs])
 
-  const companies = [...new Set(jobs.map(j => j.company))].sort()
-  const atsList = [...new Set(jobs.map(j => j.ats))].sort()
-  const statusList = [...new Set(jobs.map(j => j.status))].sort()
+  const filtered = useMemo(() => {
+    const { title, company, status, ats, location } = colFilters
+    return jobs.filter(j => {
+      if (status   && j.status  !== status)  return false
+      if (company  && j.company !== company) return false
+      if (ats      && j.ats     !== ats)     return false
+      if (title    && !j.title.toLowerCase().includes(title.toLowerCase()))       return false
+      if (location && !(j.location || '').toLowerCase().includes(location.toLowerCase())) return false
+      return true
+    })
+  }, [jobs, colFilters])
 
-  async function updateStatus(id, newStatus) {
+  const sorted = useMemo(() => {
+    const { col, dir } = sort
+    return [...filtered].sort((a, b) => {
+      let av = a[col], bv = b[col]
+      if (av == null && bv == null) return 0
+      if (av == null) return 1
+      if (bv == null) return -1
+      if (typeof av === 'string') { av = av.toLowerCase(); bv = bv.toLowerCase() }
+      if (av < bv) return dir === 'asc' ? -1 : 1
+      if (av > bv) return dir === 'asc' ? 1 : -1
+      return 0
+    })
+  }, [filtered, sort])
+
+  const pageCount   = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE))
+  const currentPage = Math.min(page, pageCount - 1)
+  const paginated   = useMemo(
+    () => sorted.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE),
+    [sorted, currentPage],
+  )
+
+  // Reset to first page whenever filters or sort change
+  useEffect(() => setPage(0), [colFilters, sort])
+
+  const toggleSort = useCallback(col => {
+    setSort(s => s.col === col ? { col, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { col, dir: 'desc' })
+  }, [])
+
+  const setColFilter = useCallback((key, val) => {
+    setColFilters(f => ({ ...f, [key]: val }))
+  }, [])
+
+  const clearFilters = useCallback(() => {
+    setColFilters({ title: '', company: '', status: '', ats: '', location: '' })
+  }, [])
+
+  const updateStatus = useCallback(async (id, newStatus) => {
     const prev = jobs.find(j => j.id === id)?.status
     setJobs(js => js.map(j => j.id === id ? { ...j, status: newStatus } : j))
     try {
@@ -47,7 +87,15 @@ export default function App() {
       setJobs(js => js.map(j => j.id === id ? { ...j, status: prev } : j))
       showToast('Update failed', true)
     }
-  }
+  }, [jobs])
+
+  const counts = useMemo(() => {
+    const c = {}
+    filtered.forEach(j => { c[j.status] = (c[j.status] || 0) + 1 })
+    return c
+  }, [filtered])
+
+  const hasFilters = Object.values(colFilters).some(Boolean)
 
   let toastTimer
   function showToast(msg, error = false) {
@@ -56,101 +104,122 @@ export default function App() {
     toastTimer = setTimeout(() => setToast(null), 2200)
   }
 
-  const counts = {}
-  filtered.forEach(j => { counts[j.status] = (counts[j.status] || 0) + 1 })
-
   return (
     <div className="app">
       <header>
         <h1>Job Bot</h1>
         <div className="stats">
           {['should_apply', 'tailored', 'applied', 'needs_manual'].map(s => (
-            <div key={s} className="stat">
-              {s.replace(/_/g, ' ')}: <strong>{counts[s] || 0}</strong>
-            </div>
+            <div key={s} className="stat">{s.replace(/_/g, ' ')}: <strong>{counts[s] || 0}</strong></div>
           ))}
-          <div className="stat total">total: <strong>{filtered.length}</strong></div>
+          <div className="stat total">showing: <strong>{filtered.length}</strong></div>
+          {hasFilters && <button className="clear-btn" onClick={clearFilters}>✕ clear filters</button>}
         </div>
       </header>
 
-      <div className="filters">
-        <input
-          placeholder="Search company or title…"
-          value={filters.search}
-          onChange={e => setFilters(f => ({ ...f, search: e.target.value }))}
-        />
-        <select value={filters.status} onChange={e => setFilters(f => ({ ...f, status: e.target.value }))}>
-          <option value="">All statuses</option>
-          {statusList.map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
-        <select value={filters.company} onChange={e => setFilters(f => ({ ...f, company: e.target.value }))}>
-          <option value="">All companies</option>
-          {companies.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
-        <select value={filters.ats} onChange={e => setFilters(f => ({ ...f, ats: e.target.value }))}>
-          <option value="">All ATS</option>
-          {atsList.map(a => <option key={a} value={a}>{a}</option>)}
-        </select>
-        <button className="clear-btn" onClick={() => setFilters({ search: '', status: '', company: '', ats: '' })}>
-          Clear
-        </button>
-      </div>
-
       {loading ? (
         <div className="loading">Loading jobs…</div>
-      ) : filtered.length === 0 ? (
-        <div className="loading">No jobs match the current filters.</div>
       ) : (
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Score</th>
-                <th>Status</th>
-                <th>Company</th>
-                <th>Title</th>
-                <th>ATS</th>
-                <th>Location</th>
-                <th>Posted</th>
-                <th>Links</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(job => (
-                <tr key={job.id}>
-                  <td><ScoreBadge score={job.fit_score} /></td>
-                  <td>
-                    <select
-                      className={`status-sel s-${job.status}`}
-                      value={job.status}
-                      onChange={e => updateStatus(job.id, e.target.value)}
-                    >
-                      {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                  </td>
-                  <td className="col-company">{job.company}</td>
-                  <td className="col-title">{job.title}</td>
-                  <td>{job.ats}</td>
-                  <td className="col-location">
-                    {job.location || ''}
-                    {job.remote ? <span className="remote-badge">Remote</span> : null}
-                  </td>
-                  <td className="col-date">{job.posted_at ? job.posted_at.slice(0, 10) : '—'}</td>
-                  <td>
-                    <div className="link-group">
-                      {job.url && <a href={job.url} target="_blank" rel="noreferrer">View</a>}
-                      {job.apply_url && <a href={job.apply_url} target="_blank" rel="noreferrer">Apply</a>}
-                    </div>
-                  </td>
+        <>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <ColHeader label="Score"    col="fit_score" sort={sort} onSort={toggleSort} />
+                  <ColHeader label="Status"   col="status"    sort={sort} onSort={toggleSort}
+                    filterValue={colFilters.status}   onFilter={v => setColFilter('status', v)}
+                    filterType="select" options={statusList} />
+                  <ColHeader label="Company"  col="company"   sort={sort} onSort={toggleSort}
+                    filterValue={colFilters.company}  onFilter={v => setColFilter('company', v)}
+                    filterType="select" options={companies} />
+                  <ColHeader label="Title"    col="title"     sort={sort} onSort={toggleSort}
+                    filterValue={colFilters.title}    onFilter={v => setColFilter('title', v)}
+                    filterType="text" />
+                  <ColHeader label="ATS"      col="ats"       sort={sort} onSort={toggleSort}
+                    filterValue={colFilters.ats}      onFilter={v => setColFilter('ats', v)}
+                    filterType="select" options={atsList} />
+                  <ColHeader label="Location" col="location"  sort={sort} onSort={toggleSort}
+                    filterValue={colFilters.location} onFilter={v => setColFilter('location', v)}
+                    filterType="text" />
+                  <ColHeader label="Posted"   col="posted_at" sort={sort} onSort={toggleSort} />
+                  <th className="th-plain">Links</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {paginated.length === 0 ? (
+                  <tr><td colSpan={8} className="empty">No jobs match the current filters.</td></tr>
+                ) : paginated.map(job => (
+                  <tr key={job.id}>
+                    <td><ScoreBadge score={job.fit_score} /></td>
+                    <td>
+                      <select
+                        className={`status-sel s-${job.status}`}
+                        value={job.status}
+                        onChange={e => updateStatus(job.id, e.target.value)}
+                      >
+                        {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </td>
+                    <td className="col-company">{job.company}</td>
+                    <td className="col-title">{job.title}</td>
+                    <td>{job.ats}</td>
+                    <td className="col-location">
+                      {job.location || ''}
+                      {job.remote ? <span className="remote-badge">Remote</span> : null}
+                    </td>
+                    <td className="col-date">{job.posted_at ? job.posted_at.slice(0, 10) : '—'}</td>
+                    <td>
+                      <div className="link-group">
+                        {job.url      && <a href={job.url}      target="_blank" rel="noreferrer">View</a>}
+                        {job.apply_url && <a href={job.apply_url} target="_blank" rel="noreferrer">Apply</a>}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="pagination">
+            <button onClick={() => setPage(0)}              disabled={currentPage === 0}>«</button>
+            <button onClick={() => setPage(p => p - 1)}    disabled={currentPage === 0}>‹</button>
+            <span>{currentPage + 1} / {pageCount} &nbsp;·&nbsp; {sorted.length} jobs</span>
+            <button onClick={() => setPage(p => p + 1)}    disabled={currentPage >= pageCount - 1}>›</button>
+            <button onClick={() => setPage(pageCount - 1)} disabled={currentPage >= pageCount - 1}>»</button>
+          </div>
+        </>
       )}
 
       {toast && <div className={`toast${toast.error ? ' toast-error' : ''}`}>{toast.msg}</div>}
     </div>
+  )
+}
+
+function ColHeader({ label, col, sort, onSort, filterValue, onFilter, filterType, options }) {
+  const isActive = sort.col === col
+  const sortIcon = isActive ? (sort.dir === 'asc' ? '↑' : '↓') : '⇅'
+
+  return (
+    <th>
+      <div className={`th-label${isActive ? ' th-active' : ''}`} onClick={() => onSort(col)}>
+        <span>{label}</span>
+        <span className="sort-icon">{sortIcon}</span>
+      </div>
+      {onFilter && filterType === 'select' && (
+        <select className="col-filter" value={filterValue} onChange={e => onFilter(e.target.value)}>
+          <option value="">All</option>
+          {options.map(o => <option key={o} value={o}>{o}</option>)}
+        </select>
+      )}
+      {onFilter && filterType === 'text' && (
+        <input
+          className="col-filter"
+          placeholder="filter…"
+          value={filterValue}
+          onChange={e => onFilter(e.target.value)}
+        />
+      )}
+    </th>
   )
 }
 
