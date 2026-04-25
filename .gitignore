@@ -8,6 +8,8 @@ db/*.sqlite
 sources.yaml
 *.pdf
 .DS_Store
+dashboard/frontend/node_modules/
+dashboard/frontend/dist/
 
 
 

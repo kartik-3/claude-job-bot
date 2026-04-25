@@ -251,7 +251,48 @@ Returns normalized `Job` dicts with the schema above. `apply_url` is the direct 
 
 ---
 
-## Phase 5 — Manual Queue
+## Phase 5 — Web Dashboard
+
+**Goal:** Local web UI to browse all jobs, filter by status/company/ATS, and update job status directly.
+
+**Stack:**
+- **Backend:** Django (minimal, no ORM/migrations — raw SQL against the existing `db/jobs.sqlite`)
+- **Frontend:** React + Vite (local npm dev server, no CDN dependencies)
+- **Dev workflow:** two terminals — `python main.py serve` (Django API on :8000) + `npm run dev` in `dashboard/frontend/` (Vite on :5173, proxies `/api/` to Django)
+
+**API endpoints (Django):**
+- `GET /api/jobs/` — all jobs, sorted by fit_score desc; accepts `?status=`, `?company=`, `?ats=`, `?search=` query params
+- `PATCH /api/jobs/<id>/` — update job status; sets `applied_at` automatically when status → `applied`
+
+**UI features (React):**
+- Header stats bar: counts for `should_apply`, `tailored`, `applied`, `needs_manual`, total
+- Filter bar: free-text search (company/title), status dropdown, company dropdown, ATS dropdown, clear button
+- All filtering is client-side (full dataset loaded once)
+- Jobs table: Score (color-coded badge), Status (inline dropdown — saves on change), Company, Title, ATS, Location + Remote badge, Posted date, View/Apply links
+- Toast notifications on status save success/failure
+
+**File layout:**
+```
+dashboard/
+├── __init__.py
+├── settings.py       # minimal Django config, no installed apps
+├── urls.py
+├── views.py          # jobs_list + job_update
+└── frontend/         # Vite React app
+    ├── package.json
+    ├── vite.config.js # proxy /api → :8000
+    ├── index.html
+    └── src/
+        ├── main.jsx
+        ├── App.jsx
+        └── App.css
+```
+
+**Done when:** `python main.py serve` + `npm run dev` shows a filterable jobs table at `http://localhost:5173` and status changes persist to SQLite.
+
+---
+
+## Phase 6 — Manual Queue
 
 **Goal:** Clean report of everything that couldn't be auto-applied.
 
@@ -264,7 +305,7 @@ I open this file once a day, click through, apply by hand.
 
 ---
 
-## Phase 6 — Quality of Life (later, optional)
+## Phase 7 — Quality of Life (later, optional)
 
 - Daily cron / scheduled run: `discover → evaluate → tailor → apply --dry-run`
 - Email or Slack digest of new `should_apply` jobs
