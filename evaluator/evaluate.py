@@ -104,6 +104,7 @@ class Preferences(BaseModel):
     non_negotiables: list[dict] = []
     excluded_industries: list[str] = []
     excluded_titles: list[str] = []
+    tech_keywords: list[str] = []
 
 
 class EvaluationResult(BaseModel):
@@ -171,6 +172,18 @@ def _role_relevant(title: str, prefs: Preferences) -> bool:
         if role_tokens and role_tokens.issubset(title_tokens):
             return True
     return False
+
+
+def _keyword_matches(description: str | None, prefs: Preferences) -> bool:
+    """Return True if the description contains at least one tech_keyword.
+
+    Always returns True when tech_keywords is empty (filter disabled) or when
+    the description is absent — we can't penalise jobs for missing JD text.
+    """
+    if not prefs.tech_keywords or not description:
+        return True
+    desc_lower = description.lower()
+    return any(kw.lower() in desc_lower for kw in prefs.tech_keywords)
 
 
 def hard_gate(job: dict, prefs: Preferences) -> tuple[bool, str]:
@@ -265,6 +278,22 @@ def run_evaluation(prefs: Preferences, resume: str) -> tuple[int, int, int]:
         if not passes:
             logger.info(
                 "Hard gate: %s — %s [%s]", job["company"], job["title"], reason
+            )
+            update_job_evaluation(
+                job["id"],
+                fit_score=0,
+                status="should_not_apply",
+                evaluation_json=json.dumps({"hard_gate_reason": reason}),
+                notes=f"hard gate: {reason}",
+            )
+            skipped_count += 1
+            evaluated += 1
+            continue
+
+        if not _keyword_matches(job.get("description"), prefs):
+            reason = "no tech keywords found in description"
+            logger.info(
+                "Keyword gate: %s — %s [%s]", job["company"], job["title"], reason
             )
             update_job_evaluation(
                 job["id"],
