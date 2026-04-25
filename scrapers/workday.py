@@ -77,7 +77,7 @@ class WorkdayScraper(BaseScraper):
             for item in postings:
                 title = item.get("title", "")
                 ext_path = item.get("externalPath", "")
-                job_url = f"https://{host}{ext_path}" if ext_path else f"https://{host}/{site}/jobs"
+                job_url = f"https://{host}/{site}{ext_path}" if ext_path else f"https://{host}/{site}/jobs"
                 location = item.get("locationsText", "") or ""
 
                 jobs.append(

@@ -110,6 +110,30 @@ def cmd_detect(args: argparse.Namespace) -> None:
             print(f"  {name:<30}  {ats}/{slug}")
 
 
+def _fix_workday_urls(company_name: str, host: str, site: str) -> int:
+    """Fix existing DB records that are missing /{site}/ in their Workday URL.
+    Returns the number of rows updated."""
+    from db import get_connection
+    from scrapers.base import make_job_id
+
+    broken_prefix = f"https://{host}/job/"
+    correct_prefix = f"https://{host}/{site}/job/"
+
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT id, company, title, url FROM jobs WHERE ats='workday' AND company=? AND url LIKE ?",
+            (company_name, f"https://{host}/job/%"),
+        ).fetchall()
+        for row in rows:
+            new_url = row["url"].replace(broken_prefix, correct_prefix, 1)
+            new_id = make_job_id(row["company"], row["title"], new_url)
+            conn.execute(
+                "UPDATE jobs SET id=?, url=?, apply_url=? WHERE id=?",
+                (new_id, new_url, new_url, row["id"]),
+            )
+    return len(rows)
+
+
 def _apply_filter(job: dict, prefs) -> tuple[bool, str]:
     """Run hard_gate + keyword_matches. Returns (passes, reason)."""
     from evaluator.filters import hard_gate, keyword_matches
@@ -176,6 +200,14 @@ def cmd_discover(args: argparse.Namespace) -> None:
             "%s: %d fetched, %d new, %d filtered",
             company.name, len(jobs), kept, filtered,
         )
+
+        # One-time URL fix for Workday jobs stored before the /{site}/ bug was fixed.
+        if company.ats == "workday" and company.slug and "/" in company.slug:
+            host_part, site = company.slug.split("/", 1)
+            host = f"{host_part}.myworkdayjobs.com"
+            fixed = _fix_workday_urls(company.name, host, site)
+            if fixed:
+                logging.info("%s: fixed %d broken Workday URLs", company.name, fixed)
 
     # Retroactively filter any status=new jobs already in the DB that no longer
     # match preferences (e.g. from runs before this feature existed, or after
