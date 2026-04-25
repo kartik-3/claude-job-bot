@@ -110,11 +110,22 @@ def cmd_detect(args: argparse.Namespace) -> None:
             print(f"  {name:<30}  {ats}/{slug}")
 
 
-def cmd_discover(args: argparse.Namespace) -> None:
-    import yaml
-    from db import init_db, upsert_job
-    from evaluator.evaluate import load_preferences
+def _apply_filter(job: dict, prefs) -> tuple[bool, str]:
+    """Run hard_gate + keyword_matches. Returns (passes, reason)."""
     from evaluator.filters import hard_gate, keyword_matches
+    passes, reason = hard_gate(job, prefs)
+    if not passes:
+        return False, reason
+    if not keyword_matches(job.get("description"), prefs):
+        return False, "no tech keywords in description"
+    return True, ""
+
+
+def cmd_discover(args: argparse.Namespace) -> None:
+    import json
+    import yaml
+    from db import get_jobs_by_status, init_db, update_job_evaluation, upsert_job
+    from evaluator.evaluate import load_preferences
     from scrapers import get_scraper
     from scrapers.base import Company
 
@@ -124,7 +135,12 @@ def cmd_discover(args: argparse.Namespace) -> None:
     prefs = None
     if prefs_path.exists():
         prefs = load_preferences(prefs_path)
-        logging.info("Preferences loaded — pre-filtering jobs at scrape time")
+        logging.info(
+            "Preferences loaded — %d target roles, locations: %s, remote_ok: %s",
+            len(prefs.target_roles),
+            prefs.locations,
+            prefs.remote_ok,
+        )
     else:
         logging.warning("profile/preferences.yaml not found — storing all jobs without filtering")
 
@@ -146,13 +162,9 @@ def cmd_discover(args: argparse.Namespace) -> None:
         kept = filtered = 0
         for job in jobs:
             if prefs is not None:
-                passes, reason = hard_gate(job.model_dump(), prefs)
+                passes, reason = _apply_filter(job.model_dump(), prefs)
                 if not passes:
-                    logging.debug("Filtered %s — %s [%s]", company.name, job.title, reason)
-                    filtered += 1
-                    continue
-                if not keyword_matches(job.description, prefs):
-                    logging.debug("Filtered %s — %s [no tech keywords]", company.name, job.title)
+                    logging.info("  skip  %s — %s [%s]", company.name, job.title, reason)
                     filtered += 1
                     continue
             if upsert_job(job.model_dump()):
@@ -161,13 +173,37 @@ def cmd_discover(args: argparse.Namespace) -> None:
         total_new += kept
         total_filtered += filtered
         logging.info(
-            "%s: %d jobs fetched, %d stored, %d filtered",
+            "%s: %d fetched, %d new, %d filtered",
             company.name, len(jobs), kept, filtered,
         )
 
+    # Retroactively filter any status=new jobs already in the DB that no longer
+    # match preferences (e.g. from runs before this feature existed, or after
+    # preferences were tightened).
+    retro_filtered = 0
+    if prefs is not None:
+        for job in get_jobs_by_status("new"):
+            passes, reason = _apply_filter(job, prefs)
+            if not passes:
+                logging.info(
+                    "  retro-filter  %s — %s [%s]",
+                    job["company"], job["title"], reason,
+                )
+                update_job_evaluation(
+                    job["id"],
+                    fit_score=0,
+                    status="should_not_apply",
+                    evaluation_json=json.dumps({"hard_gate_reason": reason}),
+                    notes=f"filtered at discover: {reason}",
+                )
+                retro_filtered += 1
+
+    total_filtered += retro_filtered
     summary = f"Discovery complete — {total_new} new jobs added"
     if prefs is not None:
         summary += f", {total_filtered} filtered by preferences"
+        if retro_filtered:
+            summary += f" ({retro_filtered} retroactively from existing new jobs)"
     print(summary)
 
 
