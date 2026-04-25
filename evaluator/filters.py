@@ -83,9 +83,9 @@ def hard_gate(job: dict, prefs) -> tuple[bool, str]:
         if excluded.lower() in title_lower:
             return False, f"excluded title: {excluded}"
 
-    if not _role_relevant(title, prefs):
-        return False, f"title not relevant to target roles: {title}"
-
+    # Seniority is a global gate — runs before role relevance so titles like
+    # "Staff Engineer" or "VP Engineering" are caught here, not misclassified
+    # as "irrelevant role".
     for token in _OVER_SENIORITY:
         if token in title_lower:
             return False, f"seniority too high: matched '{token}' in title"
@@ -94,6 +94,9 @@ def hard_gate(job: dict, prefs) -> tuple[bool, str]:
         for token in _UNDER_SENIORITY:
             if token in title_lower:
                 return False, f"seniority too low: matched '{token}' in title"
+
+    if not _role_relevant(title, prefs):
+        return False, f"title not relevant to target roles: {title}"
 
     if not _location_passes(job, prefs):
         return False, f"location mismatch: {job.get('location', 'unknown')}"

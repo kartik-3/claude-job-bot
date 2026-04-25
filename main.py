@@ -346,6 +346,26 @@ def cmd_status(args: argparse.Namespace) -> None:
             )
 
 
+def cmd_clear(args: argparse.Namespace) -> None:
+    from db import count_jobs, get_connection, init_db
+
+    init_db()
+    total = count_jobs()
+    if total == 0:
+        print("Database is already empty.")
+        return
+
+    print(f"This will permanently delete all {total} jobs from the database.")
+    confirm = input("Type 'yes' to confirm: ")
+    if confirm.strip().lower() != "yes":
+        print("Aborted.")
+        return
+
+    with get_connection() as conn:
+        conn.execute("DELETE FROM jobs")
+    print(f"Deleted {total} jobs.")
+
+
 def cmd_serve(args: argparse.Namespace) -> None:
     import os
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "dashboard.settings")
@@ -401,6 +421,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="Also show a per-company breakdown of jobs scraped",
     )
 
+    sub.add_parser("clear", help="Delete all jobs from the database (prompts for confirmation)")
+
     serve_p = sub.add_parser("serve", help="Start the Django API server for the dashboard")
     serve_p.add_argument("--host", default="127.0.0.1", help="Bind host (default: 127.0.0.1)")
     serve_p.add_argument("--port", default=8000, type=int, help="Bind port (default: 8000)")
@@ -434,6 +456,7 @@ def main() -> None:
         "evaluate": cmd_evaluate,
         "tailor": cmd_tailor,
         "apply": cmd_apply,
+        "clear": cmd_clear,
         "serve": cmd_serve,
         "status": cmd_status,
         "report": cmd_report,

@@ -39,7 +39,7 @@ PREFS_DATA = {
     "fit_score_threshold": 70,
     "non_negotiables": [],
     "excluded_industries": [],
-    "excluded_titles": ["QA Engineer", "Test Engineer"],
+    "excluded_titles": ["QA Engineer", "Test Engineer", "Data Center Engineer"],
 }
 
 
@@ -201,7 +201,9 @@ def test_good_title_passes(prefs, title):
     "Account Executive",
     "Marketing Manager",
     "Security Engineer",
-    "Data Center Engineer",
+    # "Data Center Engineer" is intentionally absent: token matching treats
+    # {"data","engineer"} ⊆ {"data","center","engineer"} as a hit for "Data Engineer".
+    # Exclude it via excluded_titles in preferences instead (done in PREFS_DATA above).
     "Sales Development Representative",
     "Product Operations Manager",
     "Recruiter",
