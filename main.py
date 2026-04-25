@@ -110,18 +110,44 @@ def cmd_detect(args: argparse.Namespace) -> None:
             print(f"  {name:<30}  {ats}/{slug}")
 
 
+def _apply_filter(job: dict, prefs) -> tuple[bool, str]:
+    """Run hard_gate + keyword_matches. Returns (passes, reason)."""
+    from evaluator.filters import hard_gate, keyword_matches
+    passes, reason = hard_gate(job, prefs)
+    if not passes:
+        return False, reason
+    if not keyword_matches(job.get("description"), prefs):
+        return False, "no tech keywords in description"
+    return True, ""
+
+
 def cmd_discover(args: argparse.Namespace) -> None:
+    import json
     import yaml
-    from db import init_db, upsert_job
+    from db import get_jobs_by_status, init_db, update_job_evaluation, upsert_job
+    from evaluator.evaluate import load_preferences
     from scrapers import get_scraper
     from scrapers.base import Company
 
     init_db()
 
+    prefs_path = Path("profile/preferences.yaml")
+    prefs = None
+    if prefs_path.exists():
+        prefs = load_preferences(prefs_path)
+        logging.info(
+            "Preferences loaded — %d target roles, locations: %s, remote_ok: %s",
+            len(prefs.target_roles),
+            prefs.locations,
+            prefs.remote_ok,
+        )
+    else:
+        logging.warning("profile/preferences.yaml not found — storing all jobs without filtering")
+
     sources_path = Path("sources.yaml")
     companies = [Company(**c) for c in yaml.safe_load(sources_path.read_text())]
 
-    total_new = 0
+    total_new = total_filtered = 0
     for company in companies:
         scraper = get_scraper(company.ats)
         if scraper is None:
@@ -133,11 +159,52 @@ def cmd_discover(args: argparse.Namespace) -> None:
             logging.error("Failed to fetch jobs for %s: %s", company.name, exc)
             continue
 
-        new_count = sum(upsert_job(job.model_dump()) for job in jobs)
-        logging.info("%s: %d jobs fetched, %d new", company.name, len(jobs), new_count)
-        total_new += new_count
+        kept = filtered = 0
+        for job in jobs:
+            if prefs is not None:
+                passes, reason = _apply_filter(job.model_dump(), prefs)
+                if not passes:
+                    logging.info("  skip  %s — %s [%s]", company.name, job.title, reason)
+                    filtered += 1
+                    continue
+            if upsert_job(job.model_dump()):
+                kept += 1
 
-    print(f"Discovery complete — {total_new} new jobs added")
+        total_new += kept
+        total_filtered += filtered
+        logging.info(
+            "%s: %d fetched, %d new, %d filtered",
+            company.name, len(jobs), kept, filtered,
+        )
+
+    # Retroactively filter any status=new jobs already in the DB that no longer
+    # match preferences (e.g. from runs before this feature existed, or after
+    # preferences were tightened).
+    retro_filtered = 0
+    if prefs is not None:
+        for job in get_jobs_by_status("new"):
+            passes, reason = _apply_filter(job, prefs)
+            if not passes:
+                logging.info(
+                    "  retro-filter  %s — %s [%s]",
+                    job["company"], job["title"], reason,
+                )
+                update_job_evaluation(
+                    job["id"],
+                    fit_score=0,
+                    status="should_not_apply",
+                    evaluation_json=json.dumps({"hard_gate_reason": reason}),
+                    notes=f"filtered at discover: {reason}",
+                )
+                retro_filtered += 1
+
+    total_filtered += retro_filtered
+    summary = f"Discovery complete — {total_new} new jobs added"
+    if prefs is not None:
+        summary += f", {total_filtered} filtered by preferences"
+        if retro_filtered:
+            summary += f" ({retro_filtered} retroactively from existing new jobs)"
+    print(summary)
 
 
 def cmd_evaluate(args: argparse.Namespace) -> None:
@@ -315,6 +382,26 @@ def cmd_status(args: argparse.Namespace) -> None:
             )
 
 
+def cmd_clear(args: argparse.Namespace) -> None:
+    from db import count_jobs, get_connection, init_db
+
+    init_db()
+    total = count_jobs()
+    if total == 0:
+        print("Database is already empty.")
+        return
+
+    print(f"This will permanently delete all {total} jobs from the database.")
+    confirm = input("Type 'yes' to confirm: ")
+    if confirm.strip().lower() != "yes":
+        print("Aborted.")
+        return
+
+    with get_connection() as conn:
+        conn.execute("DELETE FROM jobs")
+    print(f"Deleted {total} jobs.")
+
+
 def cmd_serve(args: argparse.Namespace) -> None:
     import os
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "dashboard.settings")
@@ -370,6 +457,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="Also show a per-company breakdown of jobs scraped",
     )
 
+    sub.add_parser("clear", help="Delete all jobs from the database (prompts for confirmation)")
+
     serve_p = sub.add_parser("serve", help="Start the Django API server for the dashboard")
     serve_p.add_argument("--host", default="127.0.0.1", help="Bind host (default: 127.0.0.1)")
     serve_p.add_argument("--port", default=8000, type=int, help="Bind port (default: 8000)")
@@ -403,6 +492,7 @@ def main() -> None:
         "evaluate": cmd_evaluate,
         "tailor": cmd_tailor,
         "apply": cmd_apply,
+        "clear": cmd_clear,
         "serve": cmd_serve,
         "status": cmd_status,
         "report": cmd_report,

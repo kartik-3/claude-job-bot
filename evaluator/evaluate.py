@@ -7,6 +7,7 @@ from pathlib import Path
 import yaml
 from pydantic import BaseModel, ValidationError
 
+from .filters import hard_gate, keyword_matches
 from .prompts import EVALUATION_PROMPT, SYSTEM_PROMPT
 
 logger = logging.getLogger(__name__)
@@ -65,20 +66,6 @@ def _extract_json(text: str) -> str:
         return text[start : end + 1]
     return text
 
-# Title tokens that indicate a role above the candidate's max seniority
-_OVER_SENIORITY = (
-    "staff engineer", "staff software", "principal engineer", "principal software",
-    "distinguished engineer", "fellow", "director of", "vp ", "vp,", "vice president",
-    "head of engineering", "engineering manager", " em,", "cto",
-)
-
-# Title tokens that indicate a role below mid-level
-_UNDER_SENIORITY = (
-    "junior ", "jr.", "entry level", "entry-level", "intern", "internship",
-    "graduate engineer", "associate engineer",
-)
-
-
 # ---------------------------------------------------------------------------
 # Pydantic models
 # ---------------------------------------------------------------------------
@@ -123,94 +110,6 @@ class EvaluationResult(BaseModel):
 
 def load_preferences(path: Path) -> Preferences:
     return Preferences(**yaml.safe_load(path.read_text()))
-
-
-# ---------------------------------------------------------------------------
-# Hard-gate filters (no LLM, runs first)
-# ---------------------------------------------------------------------------
-
-_INDIA_CITIES = (
-    "india", "hyderabad", "bangalore", "bengaluru", "delhi", "ncr",
-    "gurugram", "gurgaon", "noida", "mumbai", "pune", "chennai",
-)
-
-
-def _location_passes(job: dict, prefs: Preferences) -> bool:
-    if prefs.remote_ok and job.get("remote"):
-        return True
-    loc = (job.get("location") or "").lower()
-    if not loc:
-        return True  # unknown — let LLM decide
-    pref_locs = [p.lower() for p in prefs.locations]
-    if "remote" in pref_locs and "remote" in loc:
-        return True
-    # "india" in prefs acts as a catch-all for any Indian city
-    if "india" in pref_locs and any(city in loc for city in _INDIA_CITIES):
-        return True
-    for pref_loc in pref_locs:
-        if pref_loc in loc or loc in pref_loc:
-            return True
-    return False
-
-
-def _tokenize(text: str) -> set[str]:
-    return set(text.lower().replace(",", " ").replace("-", " ").replace("/", " ").split())
-
-
-def _role_relevant(title: str, prefs: Preferences) -> bool:
-    """Return True if every token in at least one target_role appears in the title.
-
-    "Software Engineer" matches "Senior Software Engineer" ✓
-    "Software Engineer" does NOT match "Security Engineer" or "Finance Manager" ✗
-    If target_roles is empty, all titles pass (no filter configured).
-    """
-    if not prefs.target_roles:
-        return True
-    title_tokens = _tokenize(title)
-    for role in prefs.target_roles:
-        role_tokens = _tokenize(role)
-        if role_tokens and role_tokens.issubset(title_tokens):
-            return True
-    return False
-
-
-def _keyword_matches(description: str | None, prefs: Preferences) -> bool:
-    """Return True if the description contains at least one tech_keyword.
-
-    Always returns True when tech_keywords is empty (filter disabled) or when
-    the description is absent — we can't penalise jobs for missing JD text.
-    """
-    if not prefs.tech_keywords or not description:
-        return True
-    desc_lower = description.lower()
-    return any(kw.lower() in desc_lower for kw in prefs.tech_keywords)
-
-
-def hard_gate(job: dict, prefs: Preferences) -> tuple[bool, str]:
-    """Return (passes, reason). passes=False means skip LLM evaluation."""
-    title = job.get("title", "")
-    title_lower = title.lower()
-
-    for excluded in prefs.excluded_titles:
-        if excluded.lower() in title_lower:
-            return False, f"excluded title: {excluded}"
-
-    if not _role_relevant(title, prefs):
-        return False, f"title not relevant to target roles: {title}"
-
-    for token in _OVER_SENIORITY:
-        if token in title_lower:
-            return False, f"seniority too high: matched '{token}' in title"
-
-    if prefs.seniority.min.lower() not in ("junior",):
-        for token in _UNDER_SENIORITY:
-            if token in title_lower:
-                return False, f"seniority too low: matched '{token}' in title"
-
-    if not _location_passes(job, prefs):
-        return False, f"location mismatch: {job.get('location', 'unknown')}"
-
-    return True, ""
 
 
 # ---------------------------------------------------------------------------
@@ -290,7 +189,7 @@ def run_evaluation(prefs: Preferences, resume: str) -> tuple[int, int, int]:
             evaluated += 1
             continue
 
-        if not _keyword_matches(job.get("description"), prefs):
+        if not keyword_matches(job.get("description"), prefs):
             reason = "no tech keywords found in description"
             logger.info(
                 "Keyword gate: %s — %s [%s]", job["company"], job["title"], reason

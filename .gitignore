@@ -1,6 +1,6 @@
 ### Project specific gitignore###
 
-profile_templates/*
+profile/*
 !profile_templates/*.example.*
 outputs/
 db/*.sqlite
