@@ -11,84 +11,46 @@ body {
 header {
   background: #1e293b;
   color: #f8fafc;
-  padding: 14px 24px;
+  padding: 12px 24px;
   display: flex;
   align-items: center;
   gap: 20px;
 }
 
-header h1 {
-  font-size: 17px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  white-space: nowrap;
-}
+header h1 { font-size: 17px; font-weight: 700; white-space: nowrap; }
 
 .stats {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   margin-left: auto;
   flex-wrap: wrap;
+  align-items: center;
 }
 
 .stat {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255,255,255,0.1);
   border-radius: 5px;
   padding: 3px 10px;
   font-size: 12px;
   white-space: nowrap;
 }
-
-.stat.total {
-  background: rgba(255, 255, 255, 0.18);
-}
-
-/* ── Filters ── */
-.filters {
-  background: #ffffff;
-  border-bottom: 1px solid #e2e8f0;
-  padding: 10px 24px;
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.filters input,
-.filters select {
-  padding: 6px 10px;
-  border: 1px solid #cbd5e1;
-  border-radius: 5px;
-  font-size: 13px;
-  background: #fff;
-  color: #1e293b;
-}
-
-.filters input { width: 210px; }
-
-.filters select { cursor: pointer; }
-
-.filters input:focus,
-.filters select:focus {
-  outline: 2px solid #6366f1;
-  outline-offset: 1px;
-}
+.stat.total { background: rgba(255,255,255,0.18); }
 
 .clear-btn {
-  padding: 6px 12px;
-  border: 1px solid #cbd5e1;
+  padding: 3px 10px;
   border-radius: 5px;
-  background: #fff;
+  border: 1px solid rgba(255,255,255,0.3);
+  background: transparent;
+  color: #f8fafc;
+  font-size: 12px;
   cursor: pointer;
-  font-size: 13px;
-  color: #475569;
+  white-space: nowrap;
 }
+.clear-btn:hover { background: rgba(255,255,255,0.1); }
 
-.clear-btn:hover { background: #f8fafc; }
-
-/* ── Table ── */
+/* ── Table wrapper ── */
 .table-wrap {
-  padding: 20px 24px;
+  padding: 16px 24px 0;
   overflow-x: auto;
 }
 
@@ -98,35 +60,91 @@ table {
   background: #ffffff;
   border-radius: 8px;
   overflow: hidden;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
 }
 
+/* ── Column headers ── */
 thead th {
   background: #f8fafc;
-  padding: 9px 12px;
-  text-align: left;
+  border-bottom: 2px solid #e2e8f0;
+  padding: 0;
+  vertical-align: top;
+}
+
+.th-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px 5px;
+  cursor: pointer;
+  user-select: none;
+  gap: 6px;
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: #64748b;
-  border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
+}
+.th-label:hover { background: #f1f5f9; }
+.th-active { color: #4f46e5 !important; }
+
+.sort-icon {
+  font-size: 11px;
+  color: #cbd5e1;
+  flex-shrink: 0;
+}
+.th-active .sort-icon { color: #4f46e5; }
+
+/* filter inputs inside headers */
+.col-filter {
+  display: block;
+  width: 100%;
+  padding: 3px 8px;
+  border: none;
+  border-top: 1px solid #e2e8f0;
+  font-size: 11px;
+  background: #f8fafc;
+  color: #475569;
+  outline: none;
+  min-width: 0;
+}
+.col-filter:focus {
+  background: #fff;
+  border-top-color: #4f46e5;
+}
+.col-filter::placeholder { color: #cbd5e1; }
+
+/* non-sortable header (Links) */
+.th-plain {
+  padding: 8px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #64748b;
   white-space: nowrap;
 }
 
+/* ── Body ── */
 tbody td {
-  padding: 9px 12px;
+  padding: 8px 10px;
   border-bottom: 1px solid #f1f5f9;
   vertical-align: middle;
 }
-
 tbody tr:last-child td { border-bottom: none; }
 tbody tr:hover td { background: #f8fafc; }
 
-.col-company { font-weight: 500; white-space: nowrap; }
-.col-title   { max-width: 280px; }
-.col-location { white-space: nowrap; }
-.col-date   { white-space: nowrap; color: #64748b; }
+.col-company  { font-weight: 500; white-space: nowrap; }
+.col-title    { max-width: 260px; }
+.col-location { white-space: nowrap; max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+.col-date     { white-space: nowrap; color: #64748b; font-size: 13px; }
+
+.empty {
+  text-align: center;
+  padding: 40px;
+  color: #94a3b8;
+}
 
 /* ── Score badge ── */
 .score {
@@ -145,18 +163,17 @@ tbody tr:hover td { background: #f8fafc; }
 
 /* ── Status select ── */
 .status-sel {
-  padding: 3px 7px;
+  padding: 3px 20px 3px 7px;
   border-radius: 5px;
   border: 1px solid transparent;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   appearance: none;
-  -webkit-appearance: none;
-  padding-right: 18px;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2364748b'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 5px center;
+  white-space: nowrap;
 }
 .status-sel:focus { outline: 2px solid #6366f1; }
 
@@ -172,22 +189,18 @@ tbody tr:hover td { background: #f8fafc; }
 
 /* ── Remote badge ── */
 .remote-badge {
-  margin-left: 5px;
-  font-size: 11px;
-  padding: 1px 6px;
+  margin-left: 4px;
+  font-size: 10px;
+  padding: 1px 5px;
   border-radius: 3px;
   background: #dbeafe;
   color: #1d4ed8;
-  font-weight: 500;
+  font-weight: 600;
   vertical-align: middle;
 }
 
 /* ── Links ── */
-.link-group {
-  display: flex;
-  gap: 5px;
-}
-
+.link-group { display: flex; gap: 4px; }
 .link-group a {
   font-size: 12px;
   padding: 2px 7px;
@@ -197,13 +210,32 @@ tbody tr:hover td { background: #f8fafc; }
   text-decoration: none;
   white-space: nowrap;
 }
+.link-group a:hover { background: #e2e8f0; color: #1e293b; }
 
-.link-group a:hover {
-  background: #e2e8f0;
-  color: #1e293b;
+/* ── Pagination ── */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 24px 20px;
+  font-size: 13px;
+  color: #475569;
 }
+.pagination button {
+  padding: 4px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  background: white;
+  cursor: pointer;
+  font-size: 13px;
+  color: #475569;
+  line-height: 1;
+}
+.pagination button:hover:not(:disabled) { background: #f1f5f9; }
+.pagination button:disabled { opacity: 0.35; cursor: default; }
 
-/* ── Loading / empty ── */
+/* ── Loading ── */
 .loading {
   text-align: center;
   padding: 60px 24px;
@@ -221,14 +253,13 @@ tbody tr:hover td { background: #f8fafc; }
   padding: 10px 18px;
   border-radius: 6px;
   font-size: 13px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-  animation: slide-in 0.2s ease;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  animation: slide-in 0.15s ease;
   z-index: 999;
 }
-
 .toast-error { background: #dc2626; }
 
 @keyframes slide-in {
-  from { opacity: 0; transform: translateY(8px); }
+  from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: translateY(0); }
 }

@@ -1,0 +1,47 @@
+{
+  "error": null,
+  "hits": 2,
+  "facets": [],
+  "content": null,
+  "jobs": [
+    {
+      "id_icims": "10403410",
+      "title": "Software Development Engineer, Prime Video",
+      "job_path": "/en/jobs/10403410/software-development-engineer-prime-video",
+      "location": "US, WA, Seattle",
+      "normalized_location": "Seattle, Washington, USA",
+      "posted_date": "April 25, 2026",
+      "description_short": "Prime Video team is looking for an SDE to build streaming infrastructure.",
+      "description": "<p>Full description here</p>",
+      "url_next_step": "https://account.amazon.com/jobs/10403410/apply",
+      "company_name": "Amazon.com Services LLC",
+      "city": "Seattle",
+      "country_code": "US",
+      "is_intern": false,
+      "is_manager": false,
+      "job_schedule_type": "Full time",
+      "job_category": "Software Development",
+      "team": "Prime Video"
+    },
+    {
+      "id_icims": "10512345",
+      "title": "Senior Software Development Engineer, Remote",
+      "job_path": "/en/jobs/10512345/senior-software-development-engineer-remote",
+      "location": "Remote",
+      "normalized_location": "Remote",
+      "posted_date": "April 20, 2026",
+      "description_short": "Remote SDE role on the AWS Lambda team.",
+      "description": "<p>Full description here</p>",
+      "url_next_step": "https://account.amazon.com/jobs/10512345/apply",
+      "company_name": "Amazon Web Services, Inc.",
+      "city": null,
+      "country_code": "US",
+      "is_intern": false,
+      "is_manager": false,
+      "job_schedule_type": "Full time",
+      "job_category": "Software Development",
+      "team": "AWS Lambda"
+    }
+  ],
+  "job_posting_search_request": {}
+}

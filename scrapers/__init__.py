@@ -1,3 +1,4 @@
+from scrapers.amazon import AmazonScraper
 from scrapers.ashby import AshbyScraper
 from scrapers.base import BaseScraper, Company, Job
 from scrapers.greenhouse import GreenhouseScraper
@@ -9,6 +10,7 @@ _REGISTRY: dict[str, type[BaseScraper]] = {
     "lever": LeverScraper,
     "ashby": AshbyScraper,
     "workday": WorkdayScraper,
+    "amazon": AmazonScraper,
 }
 
 __all__ = ["Company", "Job", "get_scraper"]

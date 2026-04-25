@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from scrapers.base import Company, make_job_id
+from scrapers.amazon import AmazonScraper
 from scrapers.ashby import AshbyScraper
 from scrapers.greenhouse import GreenhouseScraper
 from scrapers.lever import LeverScraper
@@ -146,6 +147,80 @@ class TestAshbyScraper:
         with patch("scrapers.ashby.requests.get", return_value=_mock_get({"jobPostings": []})):
             jobs = AshbyScraper().fetch_jobs(figma)
         assert jobs == []
+
+
+# --- Amazon ---
+
+@pytest.fixture
+def amazon():
+    return Company(name="Amazon", ats="amazon", slug="USA")
+
+
+class TestAmazonScraper:
+    def test_parses_job_count(self, amazon):
+        payload = json.loads((FIXTURES / "amazon_response.json").read_text())
+        with patch("scrapers.amazon.requests.get", return_value=_mock_get(payload)):
+            jobs = AmazonScraper().fetch_jobs(amazon)
+        assert len(jobs) == 2
+
+    def test_job_fields(self, amazon):
+        payload = json.loads((FIXTURES / "amazon_response.json").read_text())
+        with patch("scrapers.amazon.requests.get", return_value=_mock_get(payload)):
+            jobs = AmazonScraper().fetch_jobs(amazon)
+        job = jobs[0]
+        assert job.company == "Amazon"
+        assert job.ats == "amazon"
+        assert job.title == "Software Development Engineer, Prime Video"
+        assert job.url == "https://www.amazon.jobs/en/jobs/10403410/software-development-engineer-prime-video"
+        assert job.apply_url == "https://account.amazon.com/jobs/10403410/apply"
+        assert job.location == "US, WA, Seattle"
+        assert job.remote is False
+        assert job.posted_at == "2026-04-25"
+
+    def test_remote_detection(self, amazon):
+        payload = json.loads((FIXTURES / "amazon_response.json").read_text())
+        with patch("scrapers.amazon.requests.get", return_value=_mock_get(payload)):
+            jobs = AmazonScraper().fetch_jobs(amazon)
+        remote_job = jobs[1]
+        assert remote_job.location == "Remote"
+        assert remote_job.remote is True
+
+    def test_date_parsing(self, amazon):
+        payload = json.loads((FIXTURES / "amazon_response.json").read_text())
+        with patch("scrapers.amazon.requests.get", return_value=_mock_get(payload)):
+            jobs = AmazonScraper().fetch_jobs(amazon)
+        assert jobs[0].posted_at == "2026-04-25"
+        assert jobs[1].posted_at == "2026-04-20"
+
+    def test_id_is_deterministic(self, amazon):
+        payload = json.loads((FIXTURES / "amazon_response.json").read_text())
+        with patch("scrapers.amazon.requests.get", return_value=_mock_get(payload)):
+            jobs1 = AmazonScraper().fetch_jobs(amazon)
+            jobs2 = AmazonScraper().fetch_jobs(amazon)
+        assert jobs1[0].id == jobs2[0].id
+
+    def test_empty_response(self, amazon):
+        with patch("scrapers.amazon.requests.get", return_value=_mock_get({"hits": 0, "jobs": []})):
+            jobs = AmazonScraper().fetch_jobs(amazon)
+        assert jobs == []
+
+    def test_invalid_slug_raises(self):
+        # A slug with only commas/spaces produces no valid country codes
+        company = Company(name="Amazon", ats="amazon", slug=" , , ")
+        with pytest.raises(ValueError, match="comma-separated country codes"):
+            AmazonScraper().fetch_jobs(company)
+
+    def test_multi_country_slug(self, amazon):
+        company = Company(name="Amazon", ats="amazon", slug="USA,IND")
+        payload = json.loads((FIXTURES / "amazon_response.json").read_text())
+        with patch("scrapers.amazon.requests.get", return_value=_mock_get(payload)) as mock_get:
+            AmazonScraper().fetch_jobs(company)
+        call_params = mock_get.call_args
+        # params is a list of tuples; both country codes should be present
+        params = call_params[1]["params"]
+        country_params = [v for k, v in params if k == "normalized_country_code[]"]
+        assert "USA" in country_params
+        assert "IND" in country_params
 
 
 # --- Shared ---

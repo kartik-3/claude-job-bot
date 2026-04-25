@@ -8,31 +8,18 @@ from django.views.decorators.http import require_http_methods
 from db import STATUSES, get_connection
 
 
+_LIST_COLS = """
+    id, company, title, status, fit_score, ats,
+    location, remote, posted_at, url, apply_url, notes, applied_at
+"""
+
+
 def jobs_list(request: object) -> JsonResponse:
-    status = request.GET.get("status")
-    company = request.GET.get("company")
-    ats = request.GET.get("ats")
-    search = request.GET.get("search")
-
-    query = "SELECT * FROM jobs WHERE 1=1"
-    params: list = []
-    if status:
-        query += " AND status = ?"
-        params.append(status)
-    if company:
-        query += " AND company = ?"
-        params.append(company)
-    if ats:
-        query += " AND ats = ?"
-        params.append(ats)
-    if search:
-        query += " AND (title LIKE ? OR company LIKE ?)"
-        params.extend([f"%{search}%", f"%{search}%"])
-    query += " ORDER BY COALESCE(fit_score, -1) DESC, company, title"
-
     with get_connection() as conn:
-        rows = conn.execute(query, params).fetchall()
-
+        rows = conn.execute(
+            f"SELECT {_LIST_COLS} FROM jobs"
+            " ORDER BY COALESCE(fit_score, -1) DESC, company, title"
+        ).fetchall()
     return JsonResponse([dict(r) for r in rows], safe=False)
 
 
