@@ -139,8 +139,9 @@ tbody tr:hover td { background: #f8fafc; }
 .col-title    { max-width: 260px; }
 .col-location { white-space: nowrap; max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
 .col-date     { white-space: nowrap; color: #64748b; font-size: 13px; }
-.col-id       { font-family: monospace; font-size: 11px; color: #94a3b8; cursor: pointer; white-space: nowrap; }
-.col-id:hover { color: #475569; }
+.col-id            { font-family: monospace; font-size: 11px; color: #94a3b8; cursor: pointer; white-space: nowrap; }
+.col-id:hover      { color: #475569; }
+.col-id-copied     { color: #16a34a !important; }
 
 .empty {
   text-align: center;
@@ -364,3 +365,21 @@ tbody tr:hover td { background: #f8fafc; }
 .ms-footer button:first-child:not(:last-child) { border-right: 1px solid #f1f5f9; }
 .ms-footer button:hover { background: #f1f5f9; color: #1e293b; }
 .ms-footer .ms-clear-btn:hover { background: #fee2e2; color: #dc2626; }
+
+/* Column visibility panel */
+.colvis-wrap     { position: relative; }
+.colvis-btn      { padding: 4px 10px; border: 1px solid #e2e8f0; border-radius: 6px; background: #fff;
+                   font-size: 13px; cursor: pointer; color: #475569; white-space: nowrap; }
+.colvis-btn:hover  { background: #f1f5f9; }
+.colvis-active     { border-color: #6366f1; color: #6366f1; background: #eef2ff; }
+.colvis-dropdown { position: absolute; right: 0; top: calc(100% + 4px); z-index: 100;
+                   background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;
+                   box-shadow: 0 4px 16px rgba(0,0,0,.1); min-width: 140px; padding: 6px 0; }
+.colvis-option   { display: flex; align-items: center; gap: 8px; padding: 5px 12px;
+                   font-size: 13px; cursor: pointer; color: #374151; }
+.colvis-option:hover { background: #f8fafc; }
+.colvis-option input { cursor: pointer; }
+.colvis-footer   { border-top: 1px solid #f1f5f9; padding: 6px 12px 2px; }
+.colvis-footer button { font-size: 12px; color: #6366f1; background: none; border: none;
+                         cursor: pointer; padding: 0; }
+.colvis-footer button:hover { text-decoration: underline; }
