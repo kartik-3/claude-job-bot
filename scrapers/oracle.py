@@ -5,17 +5,17 @@ discovery. Applications require an Oracle account login, so all discovered
 jobs land in the manual queue automatically.
 
 Slug format in sources.yaml:
-    {tenant}/{siteNumber}
-
-Examples:
-    jpmc/CX_1001
+    {tenant}/{siteNumber}           — no regional subdomain (e.g. jpmc/CX_1001)
+    {tenant}.{region}/{siteNumber}  — with regional subdomain (e.g. eeho.us2/CX_45001)
 
 How to find the slug for any company:
     1. Visit the company's careers page.
     2. Find the link that redirects to a URL like:
-           https://{tenant}.fa.oraclecloud.com/hcmUI/CandidateExperience/en/sites/{siteNumber}
-    3. From that URL: tenant = subdomain before .fa.oraclecloud.com,
-                      siteNumber = last path segment (e.g. CX_1001).
+           https://{tenant}.fa.oraclecloud.com/hcmUI/CandidateExperience/...
+       or  https://{tenant}.fa.{region}.oraclecloud.com/hcmUI/CandidateExperience/...
+    3. tenant  = first subdomain label (before .fa.)
+       region  = subdomain between .fa. and .oraclecloud.com, if present
+       siteNumber = last path segment (e.g. CX_1001)
 """
 import logging
 
@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 _PAGE_SIZE = 25
 _FACETS = "LOCATIONS;WORK_LOCATIONS;WORKPLACE_TYPES;TITLES;CATEGORIES;ORGANIZATIONS;POSTING_DATES;FLEX_FIELDS"
-_EXPAND = "requisitionList.workLocation,requisitionList.secondaryLocations,requisitionList.requisitionFlexFields"
+_EXPAND = "requisitionList.workLocation,requisitionList.otherWorkLocations,requisitionList.secondaryLocations,flexFieldsFacet.values,requisitionList.requisitionFlexFields"
 
 
 def _is_remote(workplace_type: str | None, location: str | None) -> bool | None:
@@ -47,8 +47,12 @@ class OracleScraper(BaseScraper):
                 f"See scrapers/oracle.py for instructions."
             )
 
-        tenant, site = slug.split("/", 1)
-        host = f"{tenant}.fa.oraclecloud.com"
+        tenant_part, site = slug.split("/", 1)
+        if "." in tenant_part:
+            tenant_name, region = tenant_part.split(".", 1)
+            host = f"{tenant_name}.fa.{region}.oraclecloud.com"
+        else:
+            host = f"{tenant_part}.fa.oraclecloud.com"
         api_url = f"https://{host}/hcmRestApi/resources/latest/recruitingCEJobRequisitions"
 
         headers = {

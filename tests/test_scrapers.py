@@ -277,6 +277,15 @@ class TestOracleScraper:
         with pytest.raises(ValueError, match="tenant/siteNumber"):
             OracleScraper().fetch_jobs(company)
 
+    def test_regional_host(self):
+        company = Company(name="Oracle", ats="oracle", slug="eeho.us2/CX_45001")
+        payload = json.loads((FIXTURES / "oracle_response.json").read_text())
+        with patch("scrapers.oracle.requests.get", return_value=_mock_get(payload)) as mock_get:
+            jobs = OracleScraper().fetch_jobs(company)
+        url = mock_get.call_args[0][0]
+        assert "eeho.fa.us2.oraclecloud.com" in url
+        assert jobs[0].url.startswith("https://eeho.fa.us2.oraclecloud.com")
+
 
 # --- Shared ---
 
