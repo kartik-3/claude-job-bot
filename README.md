@@ -2,7 +2,7 @@
 
 A personal job application bot that discovers roles from target companies, scores them against your resume, tailors your resume for good matches, and auto-applies where possible — queuing the rest for manual review.
 
-**Company-first, not board-first.** Jobs are pulled directly from ATS platforms (Greenhouse, Lever, Ashby, Workday, Amazon) via their public APIs, not scraped from LinkedIn or Indeed.
+**Company-first, not board-first.** Jobs are pulled directly from ATS platforms (Greenhouse, Lever, Ashby, Workday, Amazon, Oracle HCM) via their public APIs, not scraped from LinkedIn or Indeed.
 
 ---
 
@@ -78,6 +78,7 @@ Edit `sources.yaml` to add the companies you want to track.
 | Ashby | `{slug}` from `jobs.ashbyhq.com/{slug}` | `figma` |
 | Workday | `{tenant}.wd{n}/{site}` from `{tenant}.wd{n}.myworkdayjobs.com/{site}/jobs` | `nvidia.wd5/NVIDIAExternalCareerSite` |
 | Amazon | Comma-separated ISO-3166-alpha-3 country codes | `USA` or `USA,IND` |
+| Oracle HCM | `{tenant}/{siteNumber}` from `{tenant}.fa.oraclecloud.com/hcmUI/CandidateExperience/en/sites/{siteNumber}` | `jpmc/CX_1001` |
 
 If you're unsure which ATS a company uses, run the auto-detector (see below).
 
@@ -101,6 +102,10 @@ python main.py detect --company Uber
 
 # Pull new jobs from all sources, pre-filtered by profile/preferences.yaml
 python main.py discover
+
+# Discover for specific companies only (case-insensitive substring match)
+python main.py discover --company "JP Morgan"
+python main.py discover --company "amazon,anthropic"
 
 # Score new jobs against your resume
 python main.py evaluate
@@ -217,7 +222,7 @@ Jobs are silently dropped if they are too old:
 | ATS | Max age |
 |-----|---------|
 | Workday | 30 days |
-| All others (Greenhouse, Lever, Ashby, Amazon) | 60 days |
+| All others (Greenhouse, Lever, Ashby, Amazon, Oracle HCM) | 60 days |
 
 Workday returns relative dates (`Posted Today`, `Posted 5 Days Ago`, `Posted 30+ Days Ago`) which are converted to ISO dates at scrape time. `30+ Days Ago` jobs are dropped immediately.
 
@@ -261,6 +266,7 @@ For every `status=new` job that survived discovery filtering, `evaluate` runs tw
 | Ashby | ✅ | ✅ | |
 | Workday | ✅ | ⚠️ manual | Requires Workday account login to apply |
 | Amazon | ✅ | ⚠️ manual | Applications via account.amazon.com |
+| Oracle HCM | ✅ | ⚠️ manual | Requires Oracle account login to apply |
 | Custom / other | ❌ | ❌ | Added to manual queue automatically |
 
 ---
@@ -278,6 +284,7 @@ scrapers/                 # ATS API clients
   ashby.py                # Ashby public job board API
   workday.py              # Workday public search API (POST-based, per-tenant)
   amazon.py               # Amazon Jobs public search API (by country code)
+  oracle.py               # Oracle HCM Cloud CE REST API (tenant/siteNumber slug)
 evaluator/                # Claude-powered fit scoring + pre-filters
   filters.py              # hard_gate and keyword_matches — used by both discover and evaluate
 tailor/                   # resume tailoring + PDF rendering + cover letter generation

@@ -192,6 +192,11 @@ def cmd_discover(args: argparse.Namespace) -> None:
     sources_path = Path("sources.yaml")
     companies = [Company(**c) for c in yaml.safe_load(sources_path.read_text())]
 
+    if args.company:
+        filters = [f.strip().lower() for f in args.company.split(",") if f.strip()]
+        companies = [c for c in companies if any(f in c.name.lower() for f in filters)]
+        logging.info("Filtered to %d companies: %s", len(companies), [c.name for c in companies])
+
     total_new = total_filtered = 0
     for company in companies:
         scraper = get_scraper(company.ats)
@@ -492,7 +497,9 @@ def build_parser() -> argparse.ArgumentParser:
     detect_p.add_argument("--company", default=None, metavar="NAME",
                           help="Test only companies whose name contains this string")
 
-    sub.add_parser("discover", help="Pull new jobs from ATS sources into the DB")
+    discover_p = sub.add_parser("discover", help="Pull new jobs from ATS sources into the DB")
+    discover_p.add_argument("--company", default=None, metavar="NAME",
+                            help="Comma-separated company name substrings to scrape (case-insensitive)")
 
     sub.add_parser("evaluate", help="Score new jobs against resume")
 
