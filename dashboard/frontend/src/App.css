@@ -139,6 +139,8 @@ tbody tr:hover td { background: #f8fafc; }
 .col-title    { max-width: 260px; }
 .col-location { white-space: nowrap; max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
 .col-date     { white-space: nowrap; color: #64748b; font-size: 13px; }
+.col-id       { font-family: monospace; font-size: 11px; color: #94a3b8; cursor: pointer; white-space: nowrap; }
+.col-id:hover { color: #475569; }
 
 .empty {
   text-align: center;

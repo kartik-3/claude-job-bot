@@ -161,11 +161,18 @@ def evaluate_job(
 # Batch runner
 # ---------------------------------------------------------------------------
 
-def run_evaluation(prefs: Preferences, resume: str) -> tuple[int, int, int]:
-    """Evaluate all status=new jobs. Returns (evaluated, should_apply, skipped)."""
-    from db import get_jobs_by_status, update_job_evaluation
+def run_evaluation(
+    prefs: Preferences,
+    resume: str,
+    companies: list[str] | None = None,
+    days: int | None = None,
+    locations: list[str] | None = None,
+    job_id: str | None = None,
+) -> tuple[int, int, int]:
+    """Evaluate status=new jobs. Returns (evaluated, should_apply, skipped)."""
+    from db import get_jobs_for_evaluation, update_job_evaluation
 
-    jobs = get_jobs_by_status("new")
+    jobs = get_jobs_for_evaluation(companies=companies, days=days, locations=locations, job_id=job_id)
     if not jobs:
         logger.info("No new jobs to evaluate")
         return 0, 0, 0

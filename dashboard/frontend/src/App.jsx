@@ -161,11 +161,12 @@ export default function App() {
                     filterValue={colFilters.date_added} onFilter={v => setColFilter('date_added', v)}
                     filterType="text" />
                   <th className="th-plain">Links</th>
+                  <th className="th-plain">ID</th>
                 </tr>
               </thead>
               <tbody>
                 {paginated.length === 0 ? (
-                  <tr><td colSpan={9} className="empty">No jobs match the current filters.</td></tr>
+                  <tr><td colSpan={10} className="empty">No jobs match the current filters.</td></tr>
                 ) : paginated.map(job => (
                   <tr key={job.id}>
                     <td><ScoreBadge score={job.fit_score} /></td>
@@ -192,6 +193,9 @@ export default function App() {
                         {job.url       && <a href={job.url}       target="_blank" rel="noreferrer">View</a>}
                         {job.apply_url && <a href={job.apply_url} target="_blank" rel="noreferrer">Apply</a>}
                       </div>
+                    </td>
+                    <td className="col-id" title={job.id} onClick={() => navigator.clipboard.writeText(job.id)}>
+                      {job.id.slice(0, 8)}
                     </td>
                   </tr>
                 ))}
