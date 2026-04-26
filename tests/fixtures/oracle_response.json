@@ -1,0 +1,47 @@
+{
+  "items": [
+    {
+      "SearchId": 1,
+      "TotalJobsCount": 2,
+      "SiteNumber": "CX_1001",
+      "Offset": 0,
+      "Limit": 25,
+      "requisitionList": [
+        {
+          "Id": "210601531",
+          "Title": "Software Engineer III",
+          "PostedDate": "2026-04-22",
+          "PostingEndDate": null,
+          "PrimaryLocation": "New York, NY, United States",
+          "WorkplaceType": "",
+          "WorkplaceTypeCode": null,
+          "ShortDescriptionStr": "Build distributed systems for our trading platform using Java and Kafka.",
+          "JobFamily": "Technology",
+          "JobFunction": "Software Engineering",
+          "secondaryLocations": [],
+          "workLocation": [],
+          "requisitionFlexFields": []
+        },
+        {
+          "Id": "210601532",
+          "Title": "Senior Software Engineer – Remote",
+          "PostedDate": "2026-04-20",
+          "PostingEndDate": null,
+          "PrimaryLocation": "Remote",
+          "WorkplaceType": "Remote",
+          "WorkplaceTypeCode": "REMOTE",
+          "ShortDescriptionStr": "Lead backend development on our cloud infrastructure team.",
+          "JobFamily": "Technology",
+          "JobFunction": "Software Engineering",
+          "secondaryLocations": [],
+          "workLocation": [],
+          "requisitionFlexFields": []
+        }
+      ]
+    }
+  ],
+  "count": 1,
+  "hasMore": false,
+  "limit": 25,
+  "offset": 0
+}

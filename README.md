@@ -2,7 +2,7 @@
 
 A personal job application bot that discovers roles from target companies, scores them against your resume, tailors your resume for good matches, and auto-applies where possible — queuing the rest for manual review.
 
-**Company-first, not board-first.** Jobs are pulled directly from ATS platforms (Greenhouse, Lever, Ashby) via their public APIs, not scraped from LinkedIn or Indeed.
+**Company-first, not board-first.** Jobs are pulled directly from ATS platforms (Greenhouse, Lever, Ashby, Workday, Amazon, Oracle HCM) via their public APIs, not scraped from LinkedIn or Indeed.
 
 ---
 
@@ -10,7 +10,7 @@ A personal job application bot that discovers roles from target companies, score
 
 | Phase | Command | What happens |
 |-------|---------|-------------|
-| 1 | `discover` | Fetches current openings from `sources.yaml`; pre-filters by title, location, and tech keywords using your preferences before storing |
+| 1 | `discover` | Fetches current openings from `sources.yaml`; pre-filters by title, location, age, and tech keywords using your preferences before storing |
 | 2 | `evaluate` | Hard-gates remaining jobs (seniority, excluded titles); scores survivors against your resume via Claude; marks `should_apply` / `should_not_apply` |
 | 3 | `tailor` | Generates a tailored resume PDF + cover letter per good-fit job |
 | 4 | `apply` | Fills and submits ATS forms via Playwright; aborts on unknown fields |
@@ -71,12 +71,14 @@ Edit `sources.yaml` to add the companies you want to track.
 
 **Finding the right slug for each ATS:**
 
-| ATS | How to find the slug |
-|-----|---------------------|
-| Greenhouse | The slug is in the careers URL: `boards.greenhouse.io/{slug}/jobs` |
-| Lever | The slug is in the URL: `jobs.lever.co/{slug}` |
-| Ashby | The slug is in the URL: `jobs.ashbyhq.com/{slug}` |
-| Workday | Visit the careers page → find the redirect to `{tenant}.wd{n}.myworkdayjobs.com/{site}/jobs` → slug format is `{tenant}.wd{n}/{site}` (e.g. `microsoft.wd1/MSFTExternal`) |
+| ATS | Slug format | Example |
+|-----|-------------|---------|
+| Greenhouse | `{slug}` from `boards.greenhouse.io/{slug}/jobs` | `anthropic` |
+| Lever | `{slug}` from `jobs.lever.co/{slug}` | `linear` |
+| Ashby | `{slug}` from `jobs.ashbyhq.com/{slug}` | `figma` |
+| Workday | `{tenant}.wd{n}/{site}` from `{tenant}.wd{n}.myworkdayjobs.com/{site}/jobs` | `nvidia.wd5/NVIDIAExternalCareerSite` |
+| Amazon | Comma-separated ISO-3166-alpha-3 country codes | `USA` or `USA,IND` |
+| Oracle HCM | `{tenant}/{siteNumber}` from `{tenant}.fa.oraclecloud.com/hcmUI/CandidateExperience/en/sites/{siteNumber}` | `jpmc/CX_1001` |
 
 If you're unsure which ATS a company uses, run the auto-detector (see below).
 
@@ -101,6 +103,10 @@ python main.py detect --company Uber
 # Pull new jobs from all sources, pre-filtered by profile/preferences.yaml
 python main.py discover
 
+# Discover for specific companies only (case-insensitive substring match)
+python main.py discover --company "JP Morgan"
+python main.py discover --company "amazon,anthropic"
+
 # Score new jobs against your resume
 python main.py evaluate
 
@@ -119,12 +125,27 @@ python main.py apply --submit
 # Limit apply to one ATS platform
 python main.py apply --ats greenhouse
 
-# Verbose logging
-python main.py --verbose discover
-
 # Delete all jobs from the database (will prompt for confirmation)
 python main.py clear
 ```
+
+### Logging
+
+Control log verbosity with `-l` / `--log` (applies to any command):
+
+```bash
+python main.py -l d discover   # debug — most verbose, shows module names
+python main.py -l i discover   # info  — default
+python main.py -l w discover   # warn  — warnings and errors only
+python main.py -l e discover   # error — errors only
+```
+
+| Flag | Level | When to use |
+|------|-------|-------------|
+| `-l d` | DEBUG | Tracing exactly what the scraper / LLM / form-filler is doing |
+| `-l i` | INFO | Normal day-to-day runs (default) |
+| `-l w` | WARNING | Quiet runs; only see things that need attention |
+| `-l e` | ERROR | Silent runs; only show failures |
 
 ### Viewing and exporting results
 
@@ -176,10 +197,17 @@ Open [http://localhost:5173](http://localhost:5173).
 ### Features
 
 - **Stats bar** — live counts for `should_apply`, `tailored`, `applied`, `needs_manual`
-- **Filters** — search by company/title, filter by status, company, or ATS platform
+- **Multi-select filters** — filter by multiple statuses, companies, or ATS platforms simultaneously
+  - **Keep only** mode — show only rows matching your selection (default)
+  - **Exclude** mode — hide rows matching your selection
+  - **Select all** / **Clear** buttons for quick bulk selection
+- **Text filters** — substring search on title and location
 - **Inline status editing** — change a job's status from the dropdown; saved immediately to SQLite
+- **Sortable columns** — click any column header to sort ascending/descending
 - **Color-coded scores** — green ≥ 75, yellow 50–74, red < 50
+- **Remote badge** — remote-eligible roles are highlighted inline
 - **Links** — direct links to the job listing and application page
+- **Pagination** — 50 rows per page
 
 ---
 
@@ -187,7 +215,20 @@ Open [http://localhost:5173](http://localhost:5173).
 
 When `profile/preferences.yaml` exists, `discover` drops non-matching jobs before they reach the database — saving LLM calls and keeping the DB clean.
 
-A job is filtered out if:
+### Age filter
+
+Jobs are silently dropped if they are too old:
+
+| ATS | Max age |
+|-----|---------|
+| Workday | 30 days |
+| All others (Greenhouse, Lever, Ashby, Amazon, Oracle HCM) | 60 days |
+
+Workday returns relative dates (`Posted Today`, `Posted 5 Days Ago`, `Posted 30+ Days Ago`) which are converted to ISO dates at scrape time. `30+ Days Ago` jobs are dropped immediately.
+
+### Preference filter
+
+A job is filtered out if any of these checks fail:
 
 | Check | Source field | Configured in |
 |-------|-------------|---------------|
@@ -200,7 +241,9 @@ A job is filtered out if:
 
 Jobs with no description (e.g. Workday) bypass the keyword check and go straight to LLM evaluation.
 
-If `profile/preferences.yaml` is missing, all scraped jobs are stored (with a warning) — same behaviour as before.
+On each `discover` run, any existing `status=new` jobs in the DB that no longer pass the preference filter are retroactively marked `should_not_apply` — so tightening your preferences takes effect immediately without re-scraping.
+
+If `profile/preferences.yaml` is missing, all scraped jobs are stored (with a warning).
 
 ---
 
@@ -214,6 +257,20 @@ For every `status=new` job that survived discovery filtering, `evaluate` runs tw
 
 ---
 
+## Supported ATS platforms
+
+| ATS | Discovery | Auto-apply | Notes |
+|-----|-----------|------------|-------|
+| Greenhouse | ✅ | ✅ | |
+| Lever | ✅ | ✅ | |
+| Ashby | ✅ | ✅ | |
+| Workday | ✅ | ⚠️ manual | Requires Workday account login to apply |
+| Amazon | ✅ | ⚠️ manual | Applications via account.amazon.com |
+| Oracle HCM | ✅ | ⚠️ manual | Requires Oracle account login to apply |
+| Custom / other | ❌ | ❌ | Added to manual queue automatically |
+
+---
+
 ## Project structure
 
 ```
@@ -221,9 +278,13 @@ sources.yaml              # companies + ATS type (edit this)
 profile/                  # your resume, preferences, form answers (gitignored)
   cover_letters/          # per-job tailored cover letters (gitignored)
 profile_templates/        # template files to copy from
-  cover_letter_template.md   # filled per-job by tailor module (Phase 3)
-  cover_letter_fallback.md   # fixed short paragraph for low-priority / char-limited forms
-scrapers/                 # ATS API clients (Greenhouse, Lever, Ashby, Workday)
+scrapers/                 # ATS API clients
+  greenhouse.py           # Greenhouse public jobs API
+  lever.py                # Lever public postings API
+  ashby.py                # Ashby public job board API
+  workday.py              # Workday public search API (POST-based, per-tenant)
+  amazon.py               # Amazon Jobs public search API (by country code)
+  oracle.py               # Oracle HCM Cloud CE REST API (tenant/siteNumber slug)
 evaluator/                # Claude-powered fit scoring + pre-filters
   filters.py              # hard_gate and keyword_matches — used by both discover and evaluate
 tailor/                   # resume tailoring + PDF rendering + cover letter generation
@@ -233,7 +294,6 @@ dashboard/                # web dashboard
   frontend/               # Vite + React app
 db/                       # SQLite database (gitignored)
 outputs/                  # tailored PDFs, screenshots, logs (gitignored)
-  cover_letters/          # generated cover letters (gitignored)
 ```
 
 ---

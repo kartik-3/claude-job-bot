@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     location             TEXT,
     remote               INTEGER,
     posted_at            TEXT,
+    date_added           TEXT,
     discovered_at        TEXT NOT NULL,
     fit_score            INTEGER,
     status               TEXT NOT NULL DEFAULT 'new',
@@ -51,6 +52,10 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE jobs ADD COLUMN cover_letter_path TEXT")
     if "screenshot_path" not in existing:
         conn.execute("ALTER TABLE jobs ADD COLUMN screenshot_path TEXT")
+    if "date_added" not in existing:
+        conn.execute("ALTER TABLE jobs ADD COLUMN date_added TEXT")
+        # Backfill from discovered_at for existing rows
+        conn.execute("UPDATE jobs SET date_added = discovered_at WHERE date_added IS NULL")
 
 
 def init_db() -> None:
@@ -72,15 +77,16 @@ def upsert_job(job: dict) -> bool:
             """
             INSERT OR IGNORE INTO jobs
                 (id, company, title, url, apply_url, ats, description,
-                 location, remote, posted_at, discovered_at, status)
+                 location, remote, posted_at, date_added, discovered_at, status)
             VALUES
                 (:id, :company, :title, :url, :apply_url, :ats, :description,
-                 :location, :remote, :posted_at, :discovered_at, 'new')
+                 :location, :remote, :posted_at, :discovered_at, :discovered_at, 'new')
             """,
             data,
         )
         is_new = result.rowcount == 1
         if not is_new:
+            # discovered_at tracks last seen; date_added is never updated
             conn.execute(
                 "UPDATE jobs SET discovered_at = ? WHERE id = ?",
                 (now, job["id"]),

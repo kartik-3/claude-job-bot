@@ -10,7 +10,7 @@ from db import STATUSES, get_connection
 
 _LIST_COLS = """
     id, company, title, status, fit_score, ats,
-    location, remote, posted_at, url, apply_url, notes, applied_at
+    location, remote, posted_at, date_added, url, apply_url, notes, applied_at
 """
 
 

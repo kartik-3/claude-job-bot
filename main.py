@@ -134,6 +134,27 @@ def _fix_workday_urls(company_name: str, host: str, site: str) -> int:
     return len(rows)
 
 
+_MAX_AGE_DAYS: dict[str, int] = {
+    "workday": 30,   # Workday 30+ already filtered in scraper; this catches N-day strings
+}
+_DEFAULT_MAX_AGE_DAYS = 60
+
+
+def _job_too_old(job: dict) -> bool:
+    """Return True if posted_at is parseable and older than the ATS max age."""
+    from datetime import date
+    posted = job.get("posted_at")
+    if not posted:
+        return False
+    try:
+        posted_date = date.fromisoformat(str(posted)[:10])
+    except ValueError:
+        return False
+    ats = job.get("ats", "")
+    max_age = _MAX_AGE_DAYS.get(ats, _DEFAULT_MAX_AGE_DAYS)
+    return (date.today() - posted_date).days > max_age
+
+
 def _apply_filter(job: dict, prefs) -> tuple[bool, str]:
     """Run hard_gate + keyword_matches. Returns (passes, reason)."""
     from evaluator.filters import hard_gate, keyword_matches
@@ -171,6 +192,11 @@ def cmd_discover(args: argparse.Namespace) -> None:
     sources_path = Path("sources.yaml")
     companies = [Company(**c) for c in yaml.safe_load(sources_path.read_text())]
 
+    if args.company:
+        filters = [f.strip().lower() for f in args.company.split(",") if f.strip()]
+        companies = [c for c in companies if any(f in c.name.lower() for f in filters)]
+        logging.info("Filtered to %d companies: %s", len(companies), [c.name for c in companies])
+
     total_new = total_filtered = 0
     for company in companies:
         scraper = get_scraper(company.ats)
@@ -185,13 +211,18 @@ def cmd_discover(args: argparse.Namespace) -> None:
 
         kept = filtered = 0
         for job in jobs:
+            job_dict = job.model_dump()
+            if _job_too_old(job_dict):
+                logging.info("  skip  %s — %s [too old: %s]", company.name, job.title, job.posted_at)
+                filtered += 1
+                continue
             if prefs is not None:
-                passes, reason = _apply_filter(job.model_dump(), prefs)
+                passes, reason = _apply_filter(job_dict, prefs)
                 if not passes:
                     logging.info("  skip  %s — %s [%s]", company.name, job.title, reason)
                     filtered += 1
                     continue
-            if upsert_job(job.model_dump()):
+            if upsert_job(job_dict):
                 kept += 1
 
         total_new += kept
@@ -454,7 +485,10 @@ def build_parser() -> argparse.ArgumentParser:
         description="Discover, evaluate, tailor, and apply to jobs.",
     )
     parser.add_argument(
-        "--verbose", "-v", action="store_true", help="Enable debug logging"
+        "--log", "-l",
+        default="e",
+        metavar="LEVEL",
+        help="Log level: d=debug  i=info  w=warn  e=error  (default: e, errors only)",
     )
 
     sub = parser.add_subparsers(dest="command", required=True)
@@ -463,7 +497,9 @@ def build_parser() -> argparse.ArgumentParser:
     detect_p.add_argument("--company", default=None, metavar="NAME",
                           help="Test only companies whose name contains this string")
 
-    sub.add_parser("discover", help="Pull new jobs from ATS sources into the DB")
+    discover_p = sub.add_parser("discover", help="Pull new jobs from ATS sources into the DB")
+    discover_p.add_argument("--company", default=None, metavar="NAME",
+                            help="Comma-separated company name substrings to scrape (case-insensitive)")
 
     sub.add_parser("evaluate", help="Score new jobs against resume")
 
@@ -511,12 +547,22 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+_LOG_LEVELS: dict[str, int] = {
+    "d": logging.DEBUG,
+    "i": logging.INFO,
+    "w": logging.WARNING,
+    "e": logging.ERROR,
+    "c": logging.CRITICAL,
+}
+
+
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
 
-    level = logging.DEBUG if args.verbose else logging.INFO
-    logging.basicConfig(format="%(levelname)s %(message)s", level=level)
+    level = _LOG_LEVELS.get(args.log.lower(), logging.INFO)
+    fmt = "%(levelname)s [%(name)s] %(message)s" if level == logging.DEBUG else "%(levelname)s %(message)s"
+    logging.basicConfig(format=fmt, level=level)
 
     commands = {
         "detect": cmd_detect,

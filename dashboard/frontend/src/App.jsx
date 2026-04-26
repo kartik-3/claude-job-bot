@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import logo from './../public/logo.png';
 
 const STATUSES = [
@@ -7,10 +7,20 @@ const STATUSES = [
 ]
 const PAGE_SIZE = 50
 
+const MULTI = () => ({ values: [], mode: 'include' })
+
+function applyMulti(val, filter) {
+  if (!filter.values.length) return true
+  const hit = filter.values.includes(val)
+  return filter.mode === 'include' ? hit : !hit
+}
+
 export default function App() {
   const [jobs, setJobs] = useState([])
   const [loading, setLoading] = useState(true)
-  const [colFilters, setColFilters] = useState({ title: '', company: '', status: '', ats: '', location: '' })
+  const [colFilters, setColFilters] = useState({
+    title: '', company: MULTI(), status: MULTI(), ats: MULTI(), location: '', date_added: '',
+  })
   const [sort, setSort] = useState({ col: 'fit_score', dir: 'desc' })
   const [page, setPage] = useState(0)
   const [toast, setToast] = useState(null)
@@ -21,18 +31,19 @@ export default function App() {
       .then(data => { setJobs(data); setLoading(false) })
   }, [])
 
-  const companies = useMemo(() => [...new Set(jobs.map(j => j.company))].sort(), [jobs])
-  const atsList   = useMemo(() => [...new Set(jobs.map(j => j.ats))].sort(), [jobs])
+  const companies  = useMemo(() => [...new Set(jobs.map(j => j.company))].sort(), [jobs])
+  const atsList    = useMemo(() => [...new Set(jobs.map(j => j.ats))].sort(), [jobs])
   const statusList = useMemo(() => [...new Set(jobs.map(j => j.status))].sort(), [jobs])
 
   const filtered = useMemo(() => {
-    const { title, company, status, ats, location } = colFilters
+    const { title, company, status, ats, location, date_added } = colFilters
     return jobs.filter(j => {
-      if (status   && j.status  !== status)  return false
-      if (company  && j.company !== company) return false
-      if (ats      && j.ats     !== ats)     return false
-      if (title    && !j.title.toLowerCase().includes(title.toLowerCase()))       return false
-      if (location && !(j.location || '').toLowerCase().includes(location.toLowerCase())) return false
+      if (!applyMulti(j.status,  status))  return false
+      if (!applyMulti(j.company, company)) return false
+      if (!applyMulti(j.ats,     ats))     return false
+      if (title      && !j.title.toLowerCase().includes(title.toLowerCase()))                   return false
+      if (location   && !(j.location || '').toLowerCase().includes(location.toLowerCase()))     return false
+      if (date_added && !(j.date_added || '').slice(0, 10).includes(date_added))                return false
       return true
     })
   }, [jobs, colFilters])
@@ -58,7 +69,6 @@ export default function App() {
     [sorted, currentPage],
   )
 
-  // Reset to first page whenever filters or sort change
   useEffect(() => setPage(0), [colFilters, sort])
 
   const toggleSort = useCallback(col => {
@@ -70,7 +80,7 @@ export default function App() {
   }, [])
 
   const clearFilters = useCallback(() => {
-    setColFilters({ title: '', company: '', status: '', ats: '', location: '' })
+    setColFilters({ title: '', company: MULTI(), status: MULTI(), ats: MULTI(), location: '', date_added: '' })
   }, [])
 
   const updateStatus = useCallback(async (id, newStatus) => {
@@ -96,7 +106,8 @@ export default function App() {
     return c
   }, [filtered])
 
-  const hasFilters = Object.values(colFilters).some(Boolean)
+  const hasFilters = colFilters.title || colFilters.location || colFilters.date_added ||
+    colFilters.company.values.length || colFilters.status.values.length || colFilters.ats.values.length
 
   let toastTimer
   function showToast(msg, error = false) {
@@ -132,26 +143,29 @@ export default function App() {
                   <ColHeader label="Score"    col="fit_score" sort={sort} onSort={toggleSort} />
                   <ColHeader label="Status"   col="status"    sort={sort} onSort={toggleSort}
                     filterValue={colFilters.status}   onFilter={v => setColFilter('status', v)}
-                    filterType="select" options={statusList} />
+                    filterType="multi" options={statusList} />
                   <ColHeader label="Company"  col="company"   sort={sort} onSort={toggleSort}
                     filterValue={colFilters.company}  onFilter={v => setColFilter('company', v)}
-                    filterType="select" options={companies} />
+                    filterType="multi" options={companies} />
                   <ColHeader label="Title"    col="title"     sort={sort} onSort={toggleSort}
                     filterValue={colFilters.title}    onFilter={v => setColFilter('title', v)}
                     filterType="text" />
                   <ColHeader label="ATS"      col="ats"       sort={sort} onSort={toggleSort}
                     filterValue={colFilters.ats}      onFilter={v => setColFilter('ats', v)}
-                    filterType="select" options={atsList} />
+                    filterType="multi" options={atsList} />
                   <ColHeader label="Location" col="location"  sort={sort} onSort={toggleSort}
                     filterValue={colFilters.location} onFilter={v => setColFilter('location', v)}
                     filterType="text" />
-                  <ColHeader label="Posted"   col="posted_at" sort={sort} onSort={toggleSort} />
+                  <ColHeader label="Posted"   col="posted_at"  sort={sort} onSort={toggleSort} />
+                  <ColHeader label="Added"    col="date_added" sort={sort} onSort={toggleSort}
+                    filterValue={colFilters.date_added} onFilter={v => setColFilter('date_added', v)}
+                    filterType="text" />
                   <th className="th-plain">Links</th>
                 </tr>
               </thead>
               <tbody>
                 {paginated.length === 0 ? (
-                  <tr><td colSpan={8} className="empty">No jobs match the current filters.</td></tr>
+                  <tr><td colSpan={9} className="empty">No jobs match the current filters.</td></tr>
                 ) : paginated.map(job => (
                   <tr key={job.id}>
                     <td><ScoreBadge score={job.fit_score} /></td>
@@ -171,10 +185,11 @@ export default function App() {
                       {job.location || ''}
                       {job.remote ? <span className="remote-badge">Remote</span> : null}
                     </td>
-                    <td className="col-date">{job.posted_at ? job.posted_at.slice(0, 10) : '—'}</td>
+                    <td className="col-date">{job.posted_at  ? job.posted_at.slice(0, 10)  : '—'}</td>
+                    <td className="col-date">{job.date_added ? job.date_added.slice(0, 10) : '—'}</td>
                     <td>
                       <div className="link-group">
-                        {job.url      && <a href={job.url}      target="_blank" rel="noreferrer">View</a>}
+                        {job.url       && <a href={job.url}       target="_blank" rel="noreferrer">View</a>}
                         {job.apply_url && <a href={job.apply_url} target="_blank" rel="noreferrer">Apply</a>}
                       </div>
                     </td>
@@ -209,11 +224,8 @@ function ColHeader({ label, col, sort, onSort, filterValue, onFilter, filterType
         <span>{label}</span>
         <span className="sort-icon">{sortIcon}</span>
       </div>
-      {onFilter && filterType === 'select' && (
-        <select className="col-filter" value={filterValue} onChange={e => onFilter(e.target.value)}>
-          <option value="">All</option>
-          {options.map(o => <option key={o} value={o}>{o}</option>)}
-        </select>
+      {onFilter && filterType === 'multi' && (
+        <MultiSelectDropdown options={options} filter={filterValue} onChange={onFilter} />
       )}
       {onFilter && filterType === 'text' && (
         <input
@@ -224,6 +236,69 @@ function ColHeader({ label, col, sort, onSort, filterValue, onFilter, filterType
         />
       )}
     </th>
+  )
+}
+
+function MultiSelectDropdown({ options, filter, onChange }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    const handler = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const toggle = val => {
+    const next = filter.values.includes(val)
+      ? filter.values.filter(v => v !== val)
+      : [...filter.values, val]
+    onChange({ ...filter, values: next })
+  }
+
+  const label = filter.values.length === 0 ? 'All'
+    : filter.values.length === 1 ? filter.values[0]
+    : `${filter.values.length} selected`
+
+  const active = filter.values.length > 0
+
+  return (
+    <div className={`ms-wrap${active ? ' ms-active' : ''}`} ref={ref}>
+      <button className="ms-btn" onClick={() => setOpen(o => !o)}>
+        <span className="ms-label">{label}</span>
+        <span className="ms-arrow">▾</span>
+      </button>
+      {open && (
+        <div className="ms-dropdown">
+          <div className="ms-mode">
+            <button
+              className={filter.mode === 'include' ? 'ms-mode-on' : ''}
+              onClick={() => onChange({ ...filter, mode: 'include' })}
+            >Keep only</button>
+            <button
+              className={filter.mode === 'exclude' ? 'ms-mode-on' : ''}
+              onClick={() => onChange({ ...filter, mode: 'exclude' })}
+            >Exclude</button>
+          </div>
+          <div className="ms-options">
+            {options.map(o => (
+              <label key={o} className="ms-option">
+                <input type="checkbox" checked={filter.values.includes(o)} onChange={() => toggle(o)} />
+                <span>{o}</span>
+              </label>
+            ))}
+          </div>
+          <div className="ms-footer">
+            <button onClick={() => onChange({ ...filter, values: [...options] })}>Select all</button>
+            {active && (
+              <button className="ms-clear-btn" onClick={() => onChange({ ...filter, values: [] })}>
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 
