@@ -101,7 +101,7 @@ class AmazonScraper(BaseScraper):
                         url=job_url,
                         apply_url=apply_url,
                         ats="amazon",
-                        description=item.get("description") or None,
+                        description=None,  # description field is a teaser; skip keyword filter
                         location=location,
                         remote=_is_remote(location),
                         posted_at=_parse_date(item.get("posted_date")),

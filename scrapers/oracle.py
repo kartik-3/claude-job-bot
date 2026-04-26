@@ -105,7 +105,7 @@ class OracleScraper(BaseScraper):
                         url=job_url,
                         apply_url=job_url,
                         ats="oracle",
-                        description=item.get("ShortDescriptionStr") or None,
+                        description=None,  # ShortDescriptionStr is a teaser; skip keyword filter
                         location=location,
                         remote=_is_remote(item.get("WorkplaceType"), location),
                         posted_at=item.get("PostedDate"),
