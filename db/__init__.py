@@ -251,7 +251,7 @@ def update_job_applied(
 
 def update_job_evaluation(
     job_id: str,
-    fit_score: int,
+    fit_score: int | None,
     status: str,
     evaluation_json: str,
     notes: str | None = None,

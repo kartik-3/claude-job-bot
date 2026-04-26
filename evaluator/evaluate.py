@@ -8,7 +8,7 @@ import yaml
 from pydantic import BaseModel, ValidationError
 
 from .filters import hard_gate, keyword_matches
-from .prompts import EVALUATION_PROMPT, SYSTEM_PROMPT
+from .prompts import EVALUATION_PROMPT, SYSTEM_PROMPT, TITLE_ONLY_EVALUATION_PROMPT
 
 logger = logging.getLogger(__name__)
 
@@ -124,7 +124,7 @@ def _call_claude(
 ) -> EvaluationResult | None:
     user_msg = EVALUATION_PROMPT.format(
         resume=resume,
-        job_description=job_description or "(no description provided)",
+        job_description=job_description,
         fit_score_threshold=prefs.fit_score_threshold,
         seniority_min=prefs.seniority.min,
         seniority_max=prefs.seniority.max,
@@ -142,6 +142,36 @@ def _call_claude(
                 logger.warning("Evaluation parse failed (attempt 1), retrying: %s", exc)
             else:
                 logger.error("Evaluation parse failed (attempt 2), skipping: %s", exc)
+    return None
+
+
+def _call_claude_title_only(
+    resume: str,
+    title: str,
+    company: str,
+    prefs: Preferences,
+) -> EvaluationResult | None:
+    user_msg = TITLE_ONLY_EVALUATION_PROMPT.format(
+        resume=resume,
+        title=title,
+        company=company,
+        fit_score_threshold=prefs.fit_score_threshold,
+        seniority_min=prefs.seniority.min,
+        seniority_max=prefs.seniority.max,
+        locations=", ".join(prefs.locations),
+        remote_ok=prefs.remote_ok,
+    )
+    for attempt in range(2):
+        try:
+            raw = _call_llm(SYSTEM_PROMPT, user_msg, max_tokens=1024)
+            if raw is None:
+                raise RuntimeError("LLM returned no output")
+            return EvaluationResult(**json.loads(_extract_json(raw)))
+        except (ValidationError, json.JSONDecodeError, KeyError, IndexError, RuntimeError) as exc:
+            if attempt == 0:
+                logger.warning("Title-only evaluation parse failed (attempt 1), retrying: %s", exc)
+            else:
+                logger.error("Title-only evaluation parse failed (attempt 2), skipping: %s", exc)
     return None
 
 
@@ -182,12 +212,10 @@ def run_evaluation(
     for job in jobs:
         passes, reason = hard_gate(job, prefs)
         if not passes:
-            logger.info(
-                "Hard gate: %s — %s [%s]", job["company"], job["title"], reason
-            )
+            logger.info("Hard gate: %s — %s [%s]", job["company"], job["title"], reason)
             update_job_evaluation(
                 job["id"],
-                fit_score=0,
+                fit_score=None,  # not scored — gate rejected before LLM
                 status="should_not_apply",
                 evaluation_json=json.dumps({"hard_gate_reason": reason}),
                 notes=f"hard gate: {reason}",
@@ -198,12 +226,10 @@ def run_evaluation(
 
         if not keyword_matches(job.get("description"), prefs):
             reason = "no tech keywords found in description"
-            logger.info(
-                "Keyword gate: %s — %s [%s]", job["company"], job["title"], reason
-            )
+            logger.info("Keyword gate: %s — %s [%s]", job["company"], job["title"], reason)
             update_job_evaluation(
                 job["id"],
-                fit_score=0,
+                fit_score=None,
                 status="should_not_apply",
                 evaluation_json=json.dumps({"hard_gate_reason": reason}),
                 notes=f"hard gate: {reason}",
@@ -212,13 +238,18 @@ def run_evaluation(
             evaluated += 1
             continue
 
-        logger.info("Evaluating: %s — %s", job["company"], job["title"])
-        result = _call_claude(resume, job.get("description") or "", prefs)
+        description = job.get("description") or ""
+        if description:
+            logger.info("Evaluating: %s — %s", job["company"], job["title"])
+            result = _call_claude(resume, description, prefs)
+        else:
+            logger.info("Evaluating (title only, no JD): %s — %s", job["company"], job["title"])
+            result = _call_claude_title_only(resume, job["title"], job["company"], prefs)
 
         if result is None:
             update_job_evaluation(
                 job["id"],
-                fit_score=0,
+                fit_score=None,
                 status="error",
                 evaluation_json=json.dumps({"error": "LLM parse failed after 2 attempts"}),
                 notes="LLM evaluation failed",
