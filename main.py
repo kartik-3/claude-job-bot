@@ -486,9 +486,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--log", "-l",
-        default="i",
+        default="e",
         metavar="LEVEL",
-        help="Log level: d=debug  i=info  w=warn  e=error  (default: i)",
+        help="Log level: d=debug  i=info  w=warn  e=error  (default: e, errors only)",
     )
 
     sub = parser.add_subparsers(dest="command", required=True)
