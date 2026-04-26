@@ -15,6 +15,20 @@ function applyMulti(val, filter) {
   return filter.mode === 'include' ? hit : !hit
 }
 
+const ALL_COLS = [
+  { key: 'score',    label: 'Score' },
+  { key: 'status',   label: 'Status' },
+  { key: 'company',  label: 'Company' },
+  { key: 'title',    label: 'Title' },
+  { key: 'ats',      label: 'ATS' },
+  { key: 'location', label: 'Location' },
+  { key: 'posted',   label: 'Posted' },
+  { key: 'added',    label: 'Added' },
+  { key: 'links',    label: 'Links' },
+  { key: 'id',       label: 'ID' },
+]
+const DEFAULT_VISIBLE = new Set(ALL_COLS.map(c => c.key))
+
 export default function App() {
   const [jobs, setJobs] = useState([])
   const [loading, setLoading] = useState(true)
@@ -24,6 +38,8 @@ export default function App() {
   const [sort, setSort] = useState({ col: 'fit_score', dir: 'desc' })
   const [page, setPage] = useState(0)
   const [toast, setToast] = useState(null)
+  const [visibleCols, setVisibleCols] = useState(DEFAULT_VISIBLE)
+  const [copiedId, setCopiedId] = useState(null)
 
   useEffect(() => {
     fetch('/api/jobs/')
@@ -100,6 +116,12 @@ export default function App() {
     }
   }, [jobs])
 
+  const copyId = useCallback(id => {
+    navigator.clipboard.writeText(id)
+    setCopiedId(id)
+    setTimeout(() => setCopiedId(null), 1500)
+  }, [])
+
   const counts = useMemo(() => {
     const c = {}
     filtered.forEach(j => { c[j.status] = (c[j.status] || 0) + 1 })
@@ -116,6 +138,9 @@ export default function App() {
     toastTimer = setTimeout(() => setToast(null), 2200)
   }
 
+  const vis = key => visibleCols.has(key)
+  const colSpan = visibleCols.size
+
   return (
     <div className="app">
       <header>
@@ -129,6 +154,7 @@ export default function App() {
           ))}
           <div className="stat total">showing: <strong>{filtered.length}</strong></div>
           {hasFilters && <button className="clear-btn" onClick={clearFilters}>✕ clear filters</button>}
+          <ColVisPanel cols={ALL_COLS} visible={visibleCols} onChange={setVisibleCols} />
         </div>
       </header>
 
@@ -140,59 +166,75 @@ export default function App() {
             <table>
               <thead>
                 <tr>
-                  <ColHeader label="Score"    col="fit_score" sort={sort} onSort={toggleSort} />
-                  <ColHeader label="Status"   col="status"    sort={sort} onSort={toggleSort}
+                  {vis('score')    && <ColHeader label="Score"    col="fit_score"  sort={sort} onSort={toggleSort} />}
+                  {vis('status')   && <ColHeader label="Status"   col="status"     sort={sort} onSort={toggleSort}
                     filterValue={colFilters.status}   onFilter={v => setColFilter('status', v)}
-                    filterType="multi" options={statusList} />
-                  <ColHeader label="Company"  col="company"   sort={sort} onSort={toggleSort}
+                    filterType="multi" options={statusList} />}
+                  {vis('company')  && <ColHeader label="Company"  col="company"    sort={sort} onSort={toggleSort}
                     filterValue={colFilters.company}  onFilter={v => setColFilter('company', v)}
-                    filterType="multi" options={companies} />
-                  <ColHeader label="Title"    col="title"     sort={sort} onSort={toggleSort}
+                    filterType="multi" options={companies} />}
+                  {vis('title')    && <ColHeader label="Title"    col="title"      sort={sort} onSort={toggleSort}
                     filterValue={colFilters.title}    onFilter={v => setColFilter('title', v)}
-                    filterType="text" />
-                  <ColHeader label="ATS"      col="ats"       sort={sort} onSort={toggleSort}
+                    filterType="text" />}
+                  {vis('ats')      && <ColHeader label="ATS"      col="ats"        sort={sort} onSort={toggleSort}
                     filterValue={colFilters.ats}      onFilter={v => setColFilter('ats', v)}
-                    filterType="multi" options={atsList} />
-                  <ColHeader label="Location" col="location"  sort={sort} onSort={toggleSort}
+                    filterType="multi" options={atsList} />}
+                  {vis('location') && <ColHeader label="Location" col="location"   sort={sort} onSort={toggleSort}
                     filterValue={colFilters.location} onFilter={v => setColFilter('location', v)}
-                    filterType="text" />
-                  <ColHeader label="Posted"   col="posted_at"  sort={sort} onSort={toggleSort} />
-                  <ColHeader label="Added"    col="date_added" sort={sort} onSort={toggleSort}
+                    filterType="text" />}
+                  {vis('posted')   && <ColHeader label="Posted"   col="posted_at"  sort={sort} onSort={toggleSort} />}
+                  {vis('added')    && <ColHeader label="Added"    col="date_added" sort={sort} onSort={toggleSort}
                     filterValue={colFilters.date_added} onFilter={v => setColFilter('date_added', v)}
-                    filterType="text" />
-                  <th className="th-plain">Links</th>
+                    filterType="text" />}
+                  {vis('links')    && <th className="th-plain">Links</th>}
+                  {vis('id')       && <th className="th-plain">ID</th>}
                 </tr>
               </thead>
               <tbody>
                 {paginated.length === 0 ? (
-                  <tr><td colSpan={9} className="empty">No jobs match the current filters.</td></tr>
+                  <tr><td colSpan={colSpan} className="empty">No jobs match the current filters.</td></tr>
                 ) : paginated.map(job => (
                   <tr key={job.id}>
-                    <td><ScoreBadge score={job.fit_score} /></td>
-                    <td>
-                      <select
-                        className={`status-sel s-${job.status}`}
-                        value={job.status}
-                        onChange={e => updateStatus(job.id, e.target.value)}
+                    {vis('score') && <td><ScoreBadge score={job.fit_score} /></td>}
+                    {vis('status') && (
+                      <td>
+                        <select
+                          className={`status-sel s-${job.status}`}
+                          value={job.status}
+                          onChange={e => updateStatus(job.id, e.target.value)}
+                        >
+                          {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                      </td>
+                    )}
+                    {vis('company')  && <td className="col-company">{job.company}</td>}
+                    {vis('title')    && <td className="col-title">{job.title}</td>}
+                    {vis('ats')      && <td>{job.ats}</td>}
+                    {vis('location') && (
+                      <td className="col-location">
+                        {job.location || ''}
+                        {job.remote ? <span className="remote-badge">Remote</span> : null}
+                      </td>
+                    )}
+                    {vis('posted') && <td className="col-date">{job.posted_at  ? job.posted_at.slice(0, 10)  : '—'}</td>}
+                    {vis('added')  && <td className="col-date">{job.date_added ? job.date_added.slice(0, 10) : '—'}</td>}
+                    {vis('links') && (
+                      <td>
+                        <div className="link-group">
+                          {job.url       && <a href={job.url}       target="_blank" rel="noreferrer">View</a>}
+                          {job.apply_url && <a href={job.apply_url} target="_blank" rel="noreferrer">Apply</a>}
+                        </div>
+                      </td>
+                    )}
+                    {vis('id') && (
+                      <td
+                        className={`col-id${copiedId === job.id ? ' col-id-copied' : ''}`}
+                        title={job.id}
+                        onClick={() => copyId(job.id)}
                       >
-                        {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-                      </select>
-                    </td>
-                    <td className="col-company">{job.company}</td>
-                    <td className="col-title">{job.title}</td>
-                    <td>{job.ats}</td>
-                    <td className="col-location">
-                      {job.location || ''}
-                      {job.remote ? <span className="remote-badge">Remote</span> : null}
-                    </td>
-                    <td className="col-date">{job.posted_at  ? job.posted_at.slice(0, 10)  : '—'}</td>
-                    <td className="col-date">{job.date_added ? job.date_added.slice(0, 10) : '—'}</td>
-                    <td>
-                      <div className="link-group">
-                        {job.url       && <a href={job.url}       target="_blank" rel="noreferrer">View</a>}
-                        {job.apply_url && <a href={job.apply_url} target="_blank" rel="noreferrer">Apply</a>}
-                      </div>
-                    </td>
+                        {copiedId === job.id ? '✓ copied' : job.id.slice(0, 8)}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -210,6 +252,46 @@ export default function App() {
       )}
 
       {toast && <div className={`toast${toast.error ? ' toast-error' : ''}`}>{toast.msg}</div>}
+    </div>
+  )
+}
+
+function ColVisPanel({ cols, visible, onChange }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    const handler = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const toggle = key => {
+    const next = new Set(visible)
+    next.has(key) ? next.delete(key) : next.add(key)
+    onChange(next)
+  }
+
+  const hiddenCount = cols.length - visible.size
+
+  return (
+    <div className="colvis-wrap" ref={ref}>
+      <button className={`colvis-btn${hiddenCount ? ' colvis-active' : ''}`} onClick={() => setOpen(o => !o)}>
+        Columns{hiddenCount ? ` (${hiddenCount} hidden)` : ''}
+      </button>
+      {open && (
+        <div className="colvis-dropdown">
+          {cols.map(c => (
+            <label key={c.key} className="colvis-option">
+              <input type="checkbox" checked={visible.has(c.key)} onChange={() => toggle(c.key)} />
+              <span>{c.label}</span>
+            </label>
+          ))}
+          <div className="colvis-footer">
+            <button onClick={() => onChange(new Set(cols.map(c => c.key)))}>Show all</button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

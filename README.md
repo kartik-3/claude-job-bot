@@ -110,6 +110,21 @@ python main.py discover --company "amazon,anthropic"
 # Score new jobs against your resume
 python main.py evaluate
 
+# Evaluate specific companies only
+python main.py evaluate --company "JP Morgan,Oracle"
+
+# Only jobs added within the last N days
+python main.py evaluate --days 7
+
+# Only jobs at certain locations
+python main.py evaluate --location "India,Bengaluru"
+
+# Re-evaluate a single job by ID (regardless of current status)
+python main.py evaluate --id a3f8c2d1
+
+# Combinable
+python main.py evaluate --company "Oracle" --days 3 --location "India"
+
 # Generate tailored resume PDFs + cover letters for good-fit jobs
 python main.py tailor
 
@@ -143,9 +158,9 @@ python main.py -l e discover   # error — errors only
 | Flag | Level | When to use |
 |------|-------|-------------|
 | `-l d` | DEBUG | Tracing exactly what the scraper / LLM / form-filler is doing |
-| `-l i` | INFO | Normal day-to-day runs (default) |
-| `-l w` | WARNING | Quiet runs; only see things that need attention |
-| `-l e` | ERROR | Silent runs; only show failures |
+| `-l i` | INFO | Progress updates and per-job decisions |
+| `-l w` | WARNING | Only see things that need attention |
+| `-l e` | ERROR | Only failures (default — silent normal runs) |
 
 ### Viewing and exporting results
 
@@ -201,12 +216,14 @@ Open [http://localhost:5173](http://localhost:5173).
   - **Keep only** mode — show only rows matching your selection (default)
   - **Exclude** mode — hide rows matching your selection
   - **Select all** / **Clear** buttons for quick bulk selection
-- **Text filters** — substring search on title and location
+- **Text filters** — substring search on title, location, and date added
+- **Column visibility** — "Columns" button in the header lets you show or hide any column; badge shows how many are hidden
 - **Inline status editing** — change a job's status from the dropdown; saved immediately to SQLite
 - **Sortable columns** — click any column header to sort ascending/descending
 - **Color-coded scores** — green ≥ 75, yellow 50–74, red < 50
 - **Remote badge** — remote-eligible roles are highlighted inline
 - **Links** — direct links to the job listing and application page
+- **Job ID** — last column shows the first 8 chars; click to copy the full ID to clipboard (flashes green to confirm)
 - **Pagination** — 50 rows per page
 
 ---
@@ -239,7 +256,9 @@ A job is filtered out if any of these checks fail:
 | Location doesn't match | `location` | `preferences.yaml` → `locations` + `remote_ok` |
 | Description has none of your `tech_keywords` | `description` | `preferences.yaml` → `tech_keywords` |
 
-Jobs with no description (e.g. Workday) bypass the keyword check and go straight to LLM evaluation.
+All string comparisons use word-token matching (not character substrings) to avoid false negatives. `tech_keywords` entries are treated as regex patterns — plain strings work as before, but you can write patterns like `kubernetes\|k8s` or `react(js)?` to match variations.
+
+Jobs with no description (e.g. Workday, Oracle HCM, Amazon) bypass the keyword check and go straight to LLM evaluation.
 
 On each `discover` run, any existing `status=new` jobs in the DB that no longer pass the preference filter are retroactively marked `should_not_apply` — so tightening your preferences takes effect immediately without re-scraping.
 

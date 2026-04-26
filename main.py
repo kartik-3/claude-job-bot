@@ -289,7 +289,16 @@ def cmd_evaluate(args: argparse.Namespace) -> None:
     prefs = load_preferences(prefs_path)
     resume = resume_path.read_text()
 
-    evaluated, should_apply, skipped = run_evaluation(prefs, resume)
+    companies = [c.strip() for c in args.company.split(",")] if args.company else None
+    locations = [l.strip() for l in args.location.split(",")] if args.location else None
+
+    evaluated, should_apply, skipped = run_evaluation(
+        prefs, resume,
+        companies=companies,
+        days=args.days,
+        locations=locations,
+        job_id=args.id,
+    )
     print(f"Evaluated {evaluated} jobs — {should_apply} to apply, {skipped} skipped")
 
 
@@ -501,7 +510,15 @@ def build_parser() -> argparse.ArgumentParser:
     discover_p.add_argument("--company", default=None, metavar="NAME",
                             help="Comma-separated company name substrings to scrape (case-insensitive)")
 
-    sub.add_parser("evaluate", help="Score new jobs against resume")
+    evaluate_p = sub.add_parser("evaluate", help="Score new jobs against resume")
+    evaluate_p.add_argument("--company", default=None, metavar="NAMES",
+                            help="Comma-separated company name substrings (case-insensitive)")
+    evaluate_p.add_argument("--days", type=int, default=None, metavar="N",
+                            help="Only jobs added within the last N days")
+    evaluate_p.add_argument("--location", default=None, metavar="LOCS",
+                            help="Comma-separated location substrings to include (case-insensitive)")
+    evaluate_p.add_argument("--id", default=None, metavar="JOB_ID",
+                            help="Evaluate a single job by its ID (regardless of status)")
 
     tailor_p = sub.add_parser("tailor", help="Generate tailored resume PDFs for good-fit jobs")
     tailor_p.add_argument(

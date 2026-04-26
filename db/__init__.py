@@ -162,6 +162,50 @@ def get_jobs_by_status(status: str) -> list[dict]:
         return [dict(row) for row in rows]
 
 
+def get_jobs_for_evaluation(
+    companies: list[str] | None = None,
+    days: int | None = None,
+    locations: list[str] | None = None,
+    job_id: str | None = None,
+) -> list[dict]:
+    """Return status=new jobs with optional filters.
+
+    companies  — include only jobs whose company name contains any of these
+                 substrings (case-insensitive)
+    days       — include only jobs added within the last N days
+    locations  — include only jobs whose location contains any of these
+                 substrings (case-insensitive)
+    job_id     — return only the single job with this exact ID (ignores status)
+    """
+    clauses: list[str] = []
+    params: list = []
+
+    if job_id:
+        clauses.append("id = ?")
+        params.append(job_id)
+    else:
+        clauses.append("status = 'new'")
+
+    if days is not None:
+        clauses.append("date(date_added) >= date('now', ?)")
+        params.append(f"-{days} days")
+
+    with get_connection() as conn:
+        where = " AND ".join(clauses)
+        rows = conn.execute(f"SELECT * FROM jobs WHERE {where}", params).fetchall()
+        jobs = [dict(row) for row in rows]
+
+    if companies:
+        lc = [c.lower() for c in companies]
+        jobs = [j for j in jobs if any(f in j["company"].lower() for f in lc)]
+
+    if locations:
+        lc = [l.lower() for l in locations]
+        jobs = [j for j in jobs if j.get("location") and any(f in j["location"].lower() for f in lc)]
+
+    return jobs
+
+
 def update_job_tailored(
     job_id: str,
     tailored_resume_path: str | None = None,
