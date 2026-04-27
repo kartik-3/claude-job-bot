@@ -90,7 +90,7 @@ class AmazonScraper(BaseScraper):
                 title: str = item.get("title", "")
                 job_path: str = item.get("job_path", "")
                 job_url = f"{_JOB_BASE}{job_path}" if job_path else _JOB_BASE
-                apply_url: str | None = item.get("url_next_step") or job_url
+                apply_url: str | None = job_url  # url_next_step is an account.amazon.com login redirect
                 location: str | None = item.get("location") or None
 
                 jobs.append(
