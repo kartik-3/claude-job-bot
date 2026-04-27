@@ -7,6 +7,7 @@ DB_PATH = Path(__file__).parent / "jobs.sqlite"
 STATUSES = (
     "new", "evaluated", "should_apply", "should_not_apply",
     "tailored", "applied", "needs_manual", "blocked", "error",
+    "needs_referral", "asked_referral", "applied_with_referral",
 )
 
 _SCHEMA = """
@@ -27,12 +28,14 @@ CREATE TABLE IF NOT EXISTS jobs (
     status               TEXT NOT NULL DEFAULT 'new',
     evaluation_json      TEXT,
     tailored_resume_path TEXT,
+    cover_letter_path    TEXT,
     applied_at           TEXT,
     screenshot_path      TEXT,
     notes                TEXT,
     CHECK (status IN (
         'new', 'evaluated', 'should_apply', 'should_not_apply',
-        'tailored', 'applied', 'needs_manual', 'blocked', 'error'
+        'tailored', 'applied', 'needs_manual', 'blocked', 'error',
+        'needs_referral', 'asked_referral', 'applied_with_referral'
     ))
 );
 """
@@ -56,6 +59,20 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE jobs ADD COLUMN date_added TEXT")
         # Backfill from discovered_at for existing rows
         conn.execute("UPDATE jobs SET date_added = discovered_at WHERE date_added IS NULL")
+
+    # Rebuild table when CHECK constraint is missing new status values.
+    # SQLite can't ALTER a CHECK constraint — requires table recreation.
+    schema_row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='jobs'"
+    ).fetchone()
+    if schema_row and "needs_referral" not in schema_row[0]:
+        cols = ", ".join(row[1] for row in conn.execute("PRAGMA table_info(jobs)"))
+        conn.executescript(f"""
+            ALTER TABLE jobs RENAME TO _jobs_old;
+            {_SCHEMA}
+            INSERT INTO jobs ({cols}) SELECT {cols} FROM _jobs_old;
+            DROP TABLE _jobs_old;
+        """)
 
 
 def init_db() -> None:
