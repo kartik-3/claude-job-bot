@@ -65,7 +65,7 @@ def init_db() -> None:
 
 
 def upsert_job(job: dict) -> bool:
-    """Insert or refresh a job row. Returns True if newly inserted."""
+    """Insert a new job row. Returns True if newly inserted, False if already exists."""
     now = datetime.now(timezone.utc).isoformat()
     data = {
         **job,
@@ -84,14 +84,7 @@ def upsert_job(job: dict) -> bool:
             """,
             data,
         )
-        is_new = result.rowcount == 1
-        if not is_new:
-            # discovered_at tracks last seen; date_added is never updated
-            conn.execute(
-                "UPDATE jobs SET discovered_at = ? WHERE id = ?",
-                (now, job["id"]),
-            )
-        return is_new
+        return result.rowcount == 1
 
 
 def count_jobs(status: str | None = None) -> int:
