@@ -187,8 +187,11 @@ tbody tr:hover td { background: #f8fafc; }
 .s-tailored         { background: #f3e8ff; color: #7c3aed; }
 .s-applied          { background: #ccfbf1; color: #0f766e; }
 .s-needs_manual     { background: #ffedd5; color: #c2410c; }
-.s-blocked          { background: #fce7f3; color: #be185d; }
-.s-error            { background: #fee2e2; color: #991b1b; }
+.s-blocked               { background: #fce7f3; color: #be185d; }
+.s-error                 { background: #fee2e2; color: #991b1b; }
+.s-needs_referral        { background: #fef9c3; color: #854d0e; }
+.s-asked_referral        { background: #cffafe; color: #0e7490; }
+.s-applied_with_referral { background: #bbf7d0; color: #065f46; }
 
 /* ── Remote badge ── */
 .remote-badge {

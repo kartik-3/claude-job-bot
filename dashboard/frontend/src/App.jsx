@@ -4,6 +4,7 @@ import logo from './../public/logo.png';
 const STATUSES = [
   'new', 'evaluated', 'should_apply', 'should_not_apply',
   'tailored', 'applied', 'needs_manual', 'blocked', 'error',
+  'needs_referral', 'asked_referral', 'applied_with_referral',
 ]
 const PAGE_SIZE = 50
 
