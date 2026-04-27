@@ -8,24 +8,6 @@ from __future__ import annotations
 
 import re
 
-# Title tokens that indicate a role above the candidate's max seniority
-_OVER_SENIORITY = (
-    "staff engineer", "staff software", "principal engineer", "principal software",
-    "distinguished engineer", "fellow", "director of", "vp ", "vp,", "vice president",
-    "head of engineering", "engineering manager", " em,", "cto",
-)
-
-# Title tokens that indicate a role below mid-level
-_UNDER_SENIORITY = (
-    "junior ", "jr.", "entry level", "entry-level", "intern", "internship",
-    "graduate engineer", "associate engineer",
-)
-
-_INDIA_CITIES = (
-    "india", "hyderabad", "bangalore", "bengaluru", "delhi", "ncr",
-    "gurugram", "gurgaon", "noida", "mumbai", "pune", "chennai",
-)
-
 
 def _tokens(text: str) -> set[str]:
     """Lowercase word tokens extracted via regex (handles punctuation cleanly)."""
@@ -44,7 +26,7 @@ def _location_passes(job: dict, prefs) -> bool:
         if pref_lower == "remote" and "remote" in loc_tokens:
             return True
         # "india" pref matches any known India city even when country isn't in location string
-        if pref_lower == "india" and any(city in loc for city in _INDIA_CITIES):
+        if pref_lower == "india" and any(city in loc for city in prefs.india_cities):
             return True
         # All pref tokens must appear in loc tokens (word-level, not character-level)
         pref_tokens = _tokens(pref_loc)
@@ -105,12 +87,12 @@ def hard_gate(job: dict, prefs) -> tuple[bool, str]:
     # Seniority is a global gate — runs before role relevance so titles like
     # "Staff Engineer" or "VP Engineering" are caught here, not misclassified
     # as "irrelevant role".
-    for token in _OVER_SENIORITY:
+    for token in prefs.over_seniority_tokens:
         if re.search(r'\b' + re.escape(token.strip()) + r'\b', title_lower):
             return False, f"seniority too high: matched '{token}' in title"
 
     if prefs.seniority.min.lower() not in ("junior",):
-        for token in _UNDER_SENIORITY:
+        for token in prefs.under_seniority_tokens:
             if re.search(r'\b' + re.escape(token.strip()) + r'\b', title_lower):
                 return False, f"seniority too low: matched '{token}' in title"
 

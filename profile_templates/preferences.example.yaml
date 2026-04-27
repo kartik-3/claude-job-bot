@@ -105,3 +105,48 @@ tech_keywords:
   - backend
   - api
   # Add or remove keywords to tune how aggressively you pre-filter
+
+# Title tokens that flag a role as too senior — job is rejected without LLM call.
+# Each token is matched as a whole word (case-insensitive) anywhere in the title.
+over_seniority_tokens:
+  - staff engineer
+  - staff software
+  - principal engineer
+  - principal software
+  - distinguished engineer
+  - fellow
+  - director of
+  - vp
+  - "vp,"
+  - vice president
+  - head of engineering
+  - engineering manager
+  - "em,"
+  - cto
+
+# Title tokens that flag a role as too junior — rejected when seniority.min is above junior.
+under_seniority_tokens:
+  - junior
+  - jr
+  - entry level
+  - entry-level
+  - intern
+  - internship
+  - graduate engineer
+  - associate engineer
+
+# City/region substrings used to match the "India" preference entry against job locations
+# that omit the country name (e.g. "Hyderabad, Telangana" still passes for pref "India").
+india_cities:
+  - india
+  - hyderabad
+  - bangalore
+  - bengaluru
+  - delhi
+  - ncr
+  - gurugram
+  - gurgaon
+  - noida
+  - mumbai
+  - pune
+  - chennai
