@@ -5,12 +5,14 @@ from scrapers.greenhouse import GreenhouseScraper
 from scrapers.lever import LeverScraper
 from scrapers.oracle import OracleScraper
 from scrapers.workday import WorkdayScraper
+from scrapers.workday_browser import WorkdayBrowserScraper
 
 _REGISTRY: dict[str, type[BaseScraper]] = {
     "greenhouse": GreenhouseScraper,
     "lever": LeverScraper,
     "ashby": AshbyScraper,
     "workday": WorkdayScraper,
+    "workday_browser": WorkdayBrowserScraper,
     "amazon": AmazonScraper,
     "oracle": OracleScraper,
 }

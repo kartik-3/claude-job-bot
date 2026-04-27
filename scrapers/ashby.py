@@ -17,9 +17,10 @@ class AshbyScraper(BaseScraper):
         data = resp.json()
 
         jobs: list[Job] = []
-        for item in data.get("jobPostings", []):
+        for item in data.get("jobs", data.get("jobPostings", [])):
             job_url: str = item.get("jobUrl", "")
-            location: str = item.get("locationName", "") or ""
+            apply_url: str = item.get("applyUrl") or job_url
+            location: str = item.get("location") or item.get("locationName", "") or ""
             is_remote: bool | None = item.get("isRemote")
             if is_remote is None and location:
                 is_remote = "remote" in location.lower()
@@ -29,12 +30,12 @@ class AshbyScraper(BaseScraper):
                     company=company.name,
                     title=item["title"],
                     url=job_url,
-                    apply_url=job_url,
+                    apply_url=apply_url,
                     ats="ashby",
                     description=item.get("descriptionHtml"),
                     location=location or None,
                     remote=is_remote,
-                    posted_at=item.get("publishedDate"),
+                    posted_at=item.get("publishedAt") or item.get("publishedDate"),
                 )
             )
         logger.debug("ashby/%s: fetched %d jobs", company.slug, len(jobs))
