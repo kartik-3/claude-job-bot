@@ -77,10 +77,10 @@ def upsert_job(job: dict) -> bool:
             """
             INSERT OR IGNORE INTO jobs
                 (id, company, title, url, apply_url, ats, description,
-                 location, remote, posted_at, date_added, discovered_at, status)
+                 location, remote, posted_at, date_added, discovered_at)
             VALUES
                 (:id, :company, :title, :url, :apply_url, :ats, :description,
-                 :location, :remote, :posted_at, :discovered_at, :discovered_at, 'new')
+                 :location, :remote, :posted_at, :discovered_at, :discovered_at)
             """,
             data,
         )

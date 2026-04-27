@@ -92,6 +92,19 @@ class Preferences(BaseModel):
     excluded_industries: list[str] = []
     excluded_titles: list[str] = []
     tech_keywords: list[str] = []
+    over_seniority_tokens: list[str] = [
+        "staff engineer", "staff software", "principal engineer", "principal software",
+        "distinguished engineer", "fellow", "director of", "vp", "vp,", "vice president",
+        "head of engineering", "engineering manager", "em,", "cto",
+    ]
+    under_seniority_tokens: list[str] = [
+        "junior", "jr", "entry level", "entry-level", "intern", "internship",
+        "graduate engineer", "associate engineer",
+    ]
+    india_cities: list[str] = [
+        "india", "hyderabad", "bangalore", "bengaluru", "delhi", "ncr",
+        "gurugram", "gurgaon", "noida", "mumbai", "pune", "chennai",
+    ]
 
 
 class EvaluationResult(BaseModel):

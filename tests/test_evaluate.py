@@ -224,7 +224,7 @@ VALID_EVAL = {
     "fit_score": 82,
     "matched_requirements": ["Java", "Spring Boot", "AWS"],
     "missing_requirements": ["Kubernetes"],
-    "strengths_for_role": ["5+ years Java", "Snowflake/Spark experience"],
+    "strengths_for_role": ["6 years Java", "Snowflake/Spark experience"],
     "concerns": ["No K8s experience mentioned"],
     "should_apply": True,
     "reasoning": "Strong backend match with relevant fintech pipeline experience.",

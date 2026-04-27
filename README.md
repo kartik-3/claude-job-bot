@@ -250,10 +250,10 @@ A job is filtered out if any of these checks fail:
 | Check | Source field | Configured in |
 |-------|-------------|---------------|
 | Title is in `excluded_titles` | `title` | `preferences.yaml` → `excluded_titles` |
-| Seniority too high (Staff, Principal, VP…) | `title` | built-in list |
-| Seniority too low (Junior, Intern…) | `title` | built-in list + `preferences.yaml` → `seniority.min` |
+| Seniority too high (Staff, Principal, VP…) | `title` | `preferences.yaml` → `over_seniority_tokens` |
+| Seniority too low (Junior, Intern…) | `title` | `preferences.yaml` → `under_seniority_tokens` + `seniority.min` |
 | Title doesn't match any `target_roles` | `title` | `preferences.yaml` → `target_roles` |
-| Location doesn't match | `location` | `preferences.yaml` → `locations` + `remote_ok` |
+| Location doesn't match | `location` | `preferences.yaml` → `locations`, `remote_ok`, `india_cities` |
 | Description has none of your `tech_keywords` | `description` | `preferences.yaml` → `tech_keywords` |
 
 All string comparisons use word-token matching (not character substrings) to avoid false negatives. `tech_keywords` entries are treated as regex patterns — plain strings work as before, but you can write patterns like `kubernetes\|k8s` or `react(js)?` to match variations.
@@ -273,6 +273,8 @@ For every `status=new` job that survived discovery filtering, `evaluate` runs tw
 1. **Hard gate (no LLM)** — re-runs the same title/seniority/location checks as discovery (catches any that slipped through without preferences), plus checks `excluded_titles`. Failures are marked `should_not_apply` instantly with a reason, no API call made.
 
 2. **LLM scoring** — Claude receives your resume, the JD, and your preferences (seniority range, locations, fit threshold). It returns a structured JSON score with matched requirements, concerns, and a `should_apply` boolean. Jobs scoring below `fit_score_threshold` (default 70) are marked `should_not_apply`.
+
+   Jobs with no description (Workday, Oracle HCM, Amazon) skip the keyword filter and are scored with a title-only prompt that returns a conservative score in the 45–75 range rather than a misleading zero. Hard-gate and keyword-gate rejections record `fit_score = NULL`, shown as `—` in the dashboard.
 
 ---
 
