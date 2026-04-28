@@ -72,6 +72,16 @@ class WorkdayBrowserScraper(BaseScraper):
             logger.debug("workday_browser/%s: loading %s", slug, careers_url)
             page.goto(careers_url, wait_until="networkidle", timeout=45_000)
 
+            # Workday redirects to community.workday.com/maintenance-page during outages.
+            if "community.workday.com" in page.url:
+                logger.warning(
+                    "workday_browser/%s: Workday is currently unavailable (maintenance). "
+                    "Check https://%s/%s/jobs manually and retry later.",
+                    slug, host, site,
+                )
+                browser.close()
+                return []
+
             csrf_token = captured["csrf"]
             logger.debug(
                 "workday_browser/%s: csrf=%s",

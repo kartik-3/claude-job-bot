@@ -1,6 +1,7 @@
 from scrapers.amazon import AmazonScraper
 from scrapers.ashby import AshbyScraper
 from scrapers.base import BaseScraper, Company, Job
+from scrapers.eightfold import EightfoldScraper
 from scrapers.greenhouse import GreenhouseScraper
 from scrapers.lever import LeverScraper
 from scrapers.oracle import OracleScraper
@@ -15,6 +16,7 @@ _REGISTRY: dict[str, type[BaseScraper]] = {
     "workday_browser": WorkdayBrowserScraper,
     "amazon": AmazonScraper,
     "oracle": OracleScraper,
+    "eightfold": EightfoldScraper,
 }
 
 __all__ = ["Company", "Job", "get_scraper"]
