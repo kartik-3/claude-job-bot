@@ -8,6 +8,7 @@ STATUSES = (
     "new", "evaluated", "should_apply", "should_not_apply",
     "tailored", "applied", "needs_manual", "blocked", "error",
     "needs_referral", "asked_referral", "applied_with_referral",
+    "reached_out",
 )
 
 _SCHEMA = """
@@ -35,7 +36,8 @@ CREATE TABLE IF NOT EXISTS jobs (
     CHECK (status IN (
         'new', 'evaluated', 'should_apply', 'should_not_apply',
         'tailored', 'applied', 'needs_manual', 'blocked', 'error',
-        'needs_referral', 'asked_referral', 'applied_with_referral'
+        'needs_referral', 'asked_referral', 'applied_with_referral',
+        'reached_out'
     ))
 );
 """
@@ -65,7 +67,7 @@ def _migrate(conn: sqlite3.Connection) -> None:
     schema_row = conn.execute(
         "SELECT sql FROM sqlite_master WHERE type='table' AND name='jobs'"
     ).fetchone()
-    if schema_row and "needs_referral" not in schema_row[0]:
+    if schema_row and ("needs_referral" not in schema_row[0] or "reached_out" not in schema_row[0]):
         cols = ", ".join(row[1] for row in conn.execute("PRAGMA table_info(jobs)"))
         conn.executescript(f"""
             ALTER TABLE jobs RENAME TO _jobs_old;

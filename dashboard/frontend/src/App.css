@@ -192,6 +192,7 @@ tbody tr:hover td { background: #f8fafc; }
 .s-needs_referral        { background: #fef9c3; color: #854d0e; }
 .s-asked_referral        { background: #cffafe; color: #0e7490; }
 .s-applied_with_referral { background: #bbf7d0; color: #065f46; }
+.s-reached_out           { background: #dbeafe; color: #1d4ed8; }
 
 /* ── Remote badge ── */
 .remote-badge {
