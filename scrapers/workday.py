@@ -31,10 +31,14 @@ logger = logging.getLogger(__name__)
 _PAGE_SIZE = 20
 
 
+_SKIP = "__skip__"  # sentinel: job is too old, discard it
+
+
 def _parse_workday_date(posted_on: str | None) -> str | None:
     """Convert Workday's relative date string to ISO-8601 (YYYY-MM-DD).
 
-    Returns None for 'Posted 30+ Days Ago' (too old to store).
+    Returns _SKIP sentinel when the job is 30+ days old.
+    Returns None for unrecognised formats — caller keeps the job with no date.
     """
     if not posted_on:
         return None
@@ -45,11 +49,12 @@ def _parse_workday_date(posted_on: str | None) -> str | None:
     if text == "posted yesterday":
         return (today - timedelta(days=1)).isoformat()
     if "30+" in text:
-        return None  # caller should skip this job
+        return _SKIP
     m = re.search(r"(\d+)\s+days?\s+ago", text)
     if m:
         return (today - timedelta(days=int(m.group(1)))).isoformat()
-    return None  # unknown format — treat as too old
+    logger.warning("workday: unrecognised postedOn format %r — keeping job", posted_on)
+    return None  # unknown format — keep with no posted_at
 
 
 class WorkdayScraper(BaseScraper):
@@ -82,6 +87,7 @@ class WorkdayScraper(BaseScraper):
 
         jobs: list[Job] = []
         offset = 0
+        total = None  # latched from first page; Workday returns 0 on subsequent pages
 
         while True:
             resp = requests.post(
@@ -97,10 +103,13 @@ class WorkdayScraper(BaseScraper):
             if not postings:
                 break
 
+            if total is None:
+                total = data.get("total", 0)
+
             for item in postings:
                 posted_at = _parse_workday_date(item.get("postedOn"))
-                if posted_at is None:
-                    continue  # 30+ days old or unknown — skip
+                if posted_at is _SKIP:
+                    continue  # 30+ days old — skip
 
                 title = item.get("title", "")
                 ext_path = item.get("externalPath", "")
@@ -123,7 +132,7 @@ class WorkdayScraper(BaseScraper):
                 )
 
             offset += len(postings)
-            if offset >= data.get("total", 0):
+            if offset >= total:
                 break
 
         logger.debug("workday/%s: fetched %d jobs", slug, len(jobs))
