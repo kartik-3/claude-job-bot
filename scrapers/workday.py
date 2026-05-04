@@ -97,6 +97,9 @@ class WorkdayScraper(BaseScraper):
                 timeout=30,
             )
             resp.raise_for_status()
+            if not resp.content:
+                logger.warning("workday/%s: empty response at offset=%d, stopping", slug, offset)
+                break
             data = resp.json()
 
             postings = data.get("jobPostings", [])
