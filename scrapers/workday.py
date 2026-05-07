@@ -20,6 +20,7 @@ How to find the slug for any company:
 """
 import logging
 import re
+import time
 from datetime import date, timedelta
 
 import requests
@@ -90,12 +91,21 @@ class WorkdayScraper(BaseScraper):
         total = None  # latched from first page; Workday returns 0 on subsequent pages
 
         while True:
-            resp = requests.post(
-                api_url,
-                json={"appliedFacets": {}, "limit": _PAGE_SIZE, "offset": offset, "searchText": ""},
-                headers=headers,
-                timeout=60,
-            )
+            for attempt in range(2):
+                resp = requests.post(
+                    api_url,
+                    json={"appliedFacets": {}, "limit": _PAGE_SIZE, "offset": offset, "searchText": ""},
+                    headers=headers,
+                    timeout=60,
+                )
+                if resp.status_code < 500:
+                    break
+                if attempt == 0:
+                    logger.warning(
+                        "workday/%s: HTTP %d at offset=%d — retrying in 10s",
+                        slug, resp.status_code, offset,
+                    )
+                    time.sleep(10)
             resp.raise_for_status()
             if not resp.content:
                 logger.warning("workday/%s: empty response at offset=%d, stopping", slug, offset)
