@@ -94,7 +94,7 @@ class WorkdayScraper(BaseScraper):
                 api_url,
                 json={"appliedFacets": {}, "limit": _PAGE_SIZE, "offset": offset, "searchText": ""},
                 headers=headers,
-                timeout=30,
+                timeout=60,
             )
             resp.raise_for_status()
             if not resp.content:
