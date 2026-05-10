@@ -2,10 +2,17 @@
 
 Workable's career site (apply.workable.com/{shortcode}/) is a React SPA
 protected by Cloudflare JS challenge — direct HTTP requests are blocked.
-Strategy (mirrors workday_browser.py):
-  1. Load the careers page in Chromium to pass the JS challenge.
-  2. Capture the account UUID from the page's first API response.
-  3. Paginate via page.evaluate() GET requests inside the browser context.
+Strategy:
+  1. Load the careers page in Chromium to pass the Cloudflare JS challenge.
+  2. POST to the v3 jobs API from inside the browser context (using the
+     session cookie established by step 1) to fetch all job listings.
+  3. Paginate using the cursor token returned in "nextPage" response field.
+
+The v3 API uses cursor-based pagination:
+    POST https://apply.workable.com/api/v3/accounts/{shortcode}/jobs
+    Body (page 1): {"query":"","department":[],"location":[],"workplace":[],"worktype":[]}
+    Body (page N): {same as page 1, plus "token": "<nextPage value from prev response>"}
+    Response: {"total": N, "results": [...], "nextPage": "<cursor>" | null}
 
 Slug format in sources.yaml:
     {shortcode}
@@ -17,31 +24,48 @@ Examples:
 
 How to find the shortcode for any company:
     Visit apply.workable.com/{shortcode}/ — the shortcode is the path segment.
-    It can also appear as a subdomain: {shortcode}.workable.com (use same value).
 """
 import logging
-import re
 
 from scrapers.base import BaseScraper, Company, Job, make_job_id
 
 logger = logging.getLogger(__name__)
 
-_PAGE_SIZE = 100
 
-
-def _parse_workable_date(created_at: str | None) -> str | None:
+def _parse_workable_date(date_str: str | None) -> str | None:
     """Return ISO-8601 date (YYYY-MM-DD) from Workable's ISO timestamp, or None."""
-    if not created_at:
+    if not date_str:
         return None
     try:
         from datetime import datetime
         return (
-            datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+            datetime.fromisoformat(date_str.replace("Z", "+00:00"))
             .date()
             .isoformat()
         )
     except (ValueError, AttributeError):
         return None
+
+
+def _extract_location(item: dict) -> str | None:
+    """Return a human-readable location string from a Workable v3 job item."""
+    loc = item.get("location")
+    if isinstance(loc, dict):
+        parts = [loc.get("city"), loc.get("region"), loc.get("country")]
+        joined = ", ".join(p for p in parts if p)
+        if joined:
+            return joined
+    locs = item.get("locations")
+    if isinstance(locs, list) and locs:
+        first = locs[0]
+        if isinstance(first, dict):
+            parts = [first.get("city"), first.get("region"), first.get("country")]
+            joined = ", ".join(p for p in parts if p)
+            if joined:
+                return joined
+        if isinstance(first, str):
+            return first
+    return None
 
 
 class WorkableScraper(BaseScraper):
@@ -53,17 +77,16 @@ class WorkableScraper(BaseScraper):
             raise ValueError(f"Workable shortcode required, got: {shortcode!r}")
 
         careers_url = f"https://apply.workable.com/{shortcode}/"
+        api_url = f"https://apply.workable.com/api/v3/accounts/{shortcode}/jobs"
 
-        captured: dict = {"uuid": None, "first_jobs": None}
-
-        # JS run inside browser to fetch one page of jobs via the Workable API.
-        # We use XMLHttpRequest so page scripts (analytics etc.) can't interfere.
+        # POST inside browser context to inherit the Cloudflare session cookie.
         fetch_js = """
-        async ([url]) => {
+        async ([url, body]) => {
             return new Promise((resolve) => {
                 const xhr = new XMLHttpRequest();
-                xhr.open('GET', url, true);
+                xhr.open('POST', url, true);
                 xhr.setRequestHeader('Accept', 'application/json');
+                xhr.setRequestHeader('Content-Type', 'application/json');
                 xhr.withCredentials = true;
                 xhr.onload = function() {
                     if (xhr.status >= 200 && xhr.status < 300) {
@@ -74,7 +97,7 @@ class WorkableScraper(BaseScraper):
                     }
                 };
                 xhr.onerror = function() { resolve({ error: 'network_error' }); };
-                xhr.send();
+                xhr.send(JSON.stringify(body));
             });
         }
         """
@@ -92,78 +115,47 @@ class WorkableScraper(BaseScraper):
             )
             page = context.new_page()
 
-            def on_response(response):
-                # Capture the account UUID from any widget/accounts API response
-                m = re.search(r"/accounts/([0-9a-f-]{36})/jobs", response.url)
-                if m and captured["uuid"] is None:
-                    captured["uuid"] = m.group(1)
-                    try:
-                        captured["first_jobs"] = response.json()
-                    except Exception:
-                        pass
-
-            page.on("response", on_response)
-
             logger.debug("workable/%s: loading %s", shortcode, careers_url)
-            page.goto(careers_url, wait_until="networkidle", timeout=60_000)
+            # "load" not "networkidle" — Cloudflare keeps polling so networkidle
+            # never fires; extra wait gives the JS challenge time to resolve.
+            page.goto(careers_url, wait_until="load", timeout=60_000)
+            page.wait_for_timeout(4_000)
 
-            # Fall back to reading UUID from the page meta tag if XHR wasn't intercepted
-            if not captured["uuid"]:
-                meta = page.query_selector('meta[name="account"]')
-                if meta:
-                    captured["uuid"] = meta.get_attribute("content")
+            base_body: dict = {
+                "query": "",
+                "department": [],
+                "location": [],
+                "workplace": [],
+                "worktype": [],
+            }
+            body = base_body.copy()
+            page_num = 0
 
-            uuid = captured["uuid"]
-            if not uuid:
-                logger.error("workable/%s: could not determine account UUID", shortcode)
-                browser.close()
-                return []
+            while True:
+                result = page.evaluate(fetch_js, [api_url, body])
 
-            logger.debug("workable/%s: account UUID = %s", shortcode, uuid)
-
-            def fetch_page(p: int) -> dict | None:
-                if p == 0 and captured["first_jobs"]:
-                    return captured["first_jobs"]
-                url = (
-                    f"https://apply.workable.com/api/v1/widget/accounts/{uuid}/jobs"
-                    f"?details=true&count={_PAGE_SIZE}&page={p}"
-                )
-                result = page.evaluate(fetch_js, [url])
                 if isinstance(result, dict) and "error" in result:
                     logger.error(
                         "workable/%s: fetch error %s on page %d",
-                        shortcode, result["error"], p,
+                        shortcode, result["error"], page_num,
                     )
-                    return None
-                return result
-
-            page_num = 0
-            total_pages = None
-
-            while True:
-                data = fetch_page(page_num)
-                if not data:
                     break
 
-                results = data.get("results", [])
+                if page_num == 0:
+                    total = result.get("total", 0)
+                    logger.debug("workable/%s: total jobs = %d", shortcode, total)
+
+                results = result.get("results", [])
                 if not results:
                     break
-
-                if total_pages is None:
-                    # Workable paginates by page count, not offset
-                    count = data.get("count", len(results))
-                    per_page = _PAGE_SIZE
-                    total_pages = -(-count // per_page)  # ceiling div
 
                 for item in results:
                     title = item.get("title", "")
                     job_code = item.get("shortcode", "")
                     apply_url = f"https://apply.workable.com/{shortcode}/j/{job_code}/"
-                    city = item.get("city") or ""
-                    country = item.get("country") or ""
-                    location = ", ".join(p for p in [city, country] if p) or None
-                    remote = item.get("remote", False)
-                    posted_at = _parse_workable_date(item.get("created_at"))
+                    location = _extract_location(item)
+                    remote = item.get("remote")
+                    posted_at = _parse_workable_date(item.get("published"))
 
                     jobs.append(
                         Job(
@@ -180,9 +172,12 @@ class WorkableScraper(BaseScraper):
                         )
                     )
 
-                page_num += 1
-                if total_pages is not None and page_num >= total_pages:
+                next_token = result.get("nextPage")
+                if not next_token:
                     break
+
+                body = {**base_body, "token": next_token}
+                page_num += 1
 
             browser.close()
 
