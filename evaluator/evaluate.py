@@ -84,6 +84,10 @@ class Preferences(BaseModel):
     target_roles: list[str]
     locations: list[str]
     remote_ok: bool
+    # If non-empty, remote jobs must be globally remote or name one of these
+    # countries/regions; remote-only-elsewhere jobs (e.g. "Remote - USA") are
+    # dropped. Empty list keeps the old behavior (any remote passes).
+    remote_countries: list[str] = []
     seniority: SeniorityRange
     salary: SalaryConfig
     visa_sponsorship_needed: bool

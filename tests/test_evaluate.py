@@ -168,6 +168,59 @@ def test_location_passes_unknown(prefs):
 
 
 # ---------------------------------------------------------------------------
+# Hard gate — remote_countries (remote jobs restricted by country)
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def prefs_india_remote() -> Preferences:
+    return Preferences(**{**PREFS_DATA, "remote_countries": ["India", "APAC"]})
+
+
+@pytest.mark.parametrize("location", [
+    "Remote - USA",
+    "Remote - UK",
+    "Remote - Canada",
+    "Remote - Singapore",
+    "Remote - Poland",
+])
+def test_remote_only_elsewhere_fails(prefs_india_remote, location):
+    passes, reason = hard_gate(make_job(location=location, remote=True), prefs_india_remote)
+    assert not passes
+    assert "location mismatch" in reason
+
+
+@pytest.mark.parametrize("location", [
+    "Remote - India",
+    "Remote, Bengaluru",
+    "Remote - APAC",
+    "Remote",
+    "Remote - Worldwide",
+    "Remote (Anywhere)",
+    "Hybrid - Bangalore, India",
+])
+def test_remote_india_or_global_passes(prefs_india_remote, location):
+    passes, _ = hard_gate(make_job(location=location, remote=True), prefs_india_remote)
+    assert passes
+
+
+def test_remote_multi_location_including_india_passes(prefs_india_remote):
+    job = make_job(location="Remote - USA; Remote - India", remote=True)
+    passes, _ = hard_gate(job, prefs_india_remote)
+    assert passes
+
+
+def test_remote_countries_empty_keeps_old_behavior(prefs):
+    # prefs has remote_countries=[] (default) — any remote job passes
+    passes, _ = hard_gate(make_job(location="Remote - USA", remote=True), prefs)
+    assert passes
+
+
+def test_nonremote_india_unaffected(prefs_india_remote):
+    passes, _ = hard_gate(make_job(location="Hyderabad, Telangana", remote=False), prefs_india_remote)
+    assert passes
+
+
+# ---------------------------------------------------------------------------
 # Hard gate — good jobs pass through
 # ---------------------------------------------------------------------------
 

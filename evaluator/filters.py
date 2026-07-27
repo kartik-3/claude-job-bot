@@ -14,10 +14,44 @@ def _tokens(text: str) -> set[str]:
     return set(re.findall(r'\b\w+\b', text.lower()))
 
 
-def _location_passes(job: dict, prefs) -> bool:
-    if prefs.remote_ok and job.get("remote"):
+# Location words that describe the work arrangement, not the place.
+_REMOTE_BOILERPLATE = {"remote", "hybrid", "flexible", "fully", "wfh", "work", "from", "home", "or", "based", "only"}
+
+# Remote-region words that plausibly include any country.
+_GLOBAL_REMOTE_TOKENS = {"worldwide", "global", "globally", "anywhere", "international"}
+
+
+def _remote_location_passes(loc: str, prefs) -> bool:
+    """Gate for remote jobs when prefs.remote_countries is set.
+
+    A remote job passes only if its location is globally remote (bare
+    "Remote", "Remote - Worldwide", …) or names one of the allowed
+    countries/regions. "Remote - USA" fails for remote_countries=[India].
+    """
+    if not prefs.remote_countries:
+        return True  # feature disabled — any remote location is fine
+    loc_tokens = _tokens(loc)
+    place_tokens = loc_tokens - _REMOTE_BOILERPLATE
+    if not place_tokens or place_tokens & _GLOBAL_REMOTE_TOKENS:
         return True
+    for country in prefs.remote_countries:
+        country_lower = country.lower()
+        # "india" matches known India cities too ("Remote - Bengaluru")
+        if country_lower == "india" and any(city in loc for city in prefs.india_cities):
+            return True
+        country_tokens = _tokens(country)
+        if country_tokens and country_tokens.issubset(loc_tokens):
+            return True
+    return False
+
+
+def _location_passes(job: dict, prefs) -> bool:
     loc = (job.get("location") or "").lower()
+    if prefs.remote_ok and job.get("remote"):
+        # Decisive for remote jobs: a bare "Remote" entry in prefs.locations
+        # must not rescue a remote-only-elsewhere job. Multi-location strings
+        # naming an allowed country still pass inside the gate.
+        return _remote_location_passes(loc, prefs)
     if not loc:
         return True  # unknown location — let LLM decide
     loc_tokens = _tokens(loc)
