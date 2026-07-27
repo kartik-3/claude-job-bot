@@ -57,6 +57,14 @@ locations:
 
 remote_ok: true
 
+# Optional. If non-empty, remote jobs must be globally remote ("Remote",
+# "Remote - Worldwide") or name one of these countries/regions; remote-only-
+# elsewhere jobs (e.g. "Remote - USA" when you want India) are dropped.
+# Leave empty ([]) to accept remote jobs from anywhere.
+remote_countries: []
+#  - India
+#  - APAC
+
 seniority:
   min: mid       # junior, mid, senior, staff, principal
   max: senior

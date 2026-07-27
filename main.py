@@ -32,12 +32,141 @@ def cmd_detect(args: argparse.Namespace) -> None:
     LEVER      = "https://api.lever.co/v0/postings/{slug}"
     ASHBY      = "https://api.ashbyhq.com/posting-api/job-board/{slug}"
 
+    UA = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"}
+
     def probe(url: str) -> bool:
+        # One retry: sequential probing can trip rate limits / transient failures,
+        # and a false "broken" costs more than a second request.
+        for attempt in range(2):
+            try:
+                r = requests.get(url, headers=UA, timeout=10)
+                if r.ok:
+                    return True
+                if r.status_code == 404:
+                    return False
+            except Exception:
+                pass
+            if attempt == 0:
+                import time
+                time.sleep(2)
+        return False
+
+    def _probe_workday(slug: str) -> bool | None:
         try:
-            r = requests.get(url, timeout=10)
-            return r.ok
+            tenant_part, site = slug.split("/", 1)
+            tenant = tenant_part.split(".", 1)[0]
+        except ValueError:
+            return False
+        try:
+            r = requests.post(
+                f"https://{tenant_part}.myworkdayjobs.com/wday/cxs/{tenant}/{site}/jobs",
+                json={"limit": 1, "offset": 0, "searchText": ""},
+                headers={**UA, "Content-Type": "application/json"}, timeout=10,
+            )
+            return r.status_code == 200 and "total" in r.json()
         except Exception:
             return False
+
+    def _probe_smartrecruiters(slug: str) -> bool | None:
+        try:
+            r = requests.get(
+                f"https://api.smartrecruiters.com/v1/companies/{slug}/postings",
+                params={"limit": 1}, headers=UA, timeout=10,
+            )
+            if r.status_code != 200:
+                return False
+            # SR returns 200 with totalFound=0 for ANY slug — only >0 proves it
+            return True if r.json().get("totalFound", 0) > 0 else None
+        except Exception:
+            return False
+
+    def _probe_oracle(slug: str) -> bool | None:
+        try:
+            tenant_part, site = slug.split("/", 1)
+            if "." in tenant_part:
+                tenant, region = tenant_part.split(".", 1)
+                host = f"{tenant}.fa.{region}.oraclecloud.com"
+            else:
+                host = f"{tenant_part}.fa.oraclecloud.com"
+            r = requests.get(
+                f"https://{host}/hcmRestApi/resources/latest/recruitingCEJobRequisitions",
+                params={"onlyData": "true", "finder": f"findReqs;siteNumber={site},limit=1,offset=0"},
+                headers={**UA, "Accept": "application/json"}, timeout=10,
+            )
+            return r.status_code == 200 and bool(r.json().get("items"))
+        except Exception:
+            return False
+
+    def _probe_phenom(slug: str) -> bool | None:
+        try:
+            r = requests.post(
+                f"https://{slug}/widgets",
+                json={"lang": "en_us", "ddoKey": "refineSearch", "from": 0, "jobs": True,
+                      "size": 1, "pageName": "search-results", "siteType": "external",
+                      "keywords": "", "global": True, "selected_fields": {}},
+                headers={**UA, "Content-Type": "application/json"}, timeout=10,
+            )
+            return r.status_code == 200 and "refineSearch" in r.json()
+        except Exception:
+            return False
+
+    def _probe_radancy(slug: str) -> bool | None:
+        try:
+            r = requests.get(
+                f"https://{slug}/search-jobs/results",
+                params={"ActiveFacetID": 0, "CurrentPage": 1, "RecordsPerPage": 1,
+                        "SortCriteria": 0, "SortDirection": 1},
+                headers={**UA, "Accept": "application/json", "X-Requested-With": "XMLHttpRequest"},
+                timeout=10,
+            )
+            return r.status_code == 200 and "results" in r.json()
+        except Exception:
+            return False
+
+    def _probe_icims(slug: str) -> bool | None:
+        host = slug.split("/", 1)[0]
+        return probe(f"https://{host}/api/jobs?limit=1")
+
+    def _probe_successfactors(slug: str) -> bool | None:
+        try:
+            datacenter, company_id = slug.split("/", 1)
+            return probe(f"https://{datacenter}.sapsf.com/career?company={company_id}&lang=en_US")
+        except ValueError:
+            return False
+
+    def _probe_amazon(slug: str) -> bool | None:
+        return probe(f"https://www.amazon.jobs/en/search.json?result_limit=1&normalized_country_code[]={slug.split(',')[0]}")
+
+    def _probe_microsoft(slug: str) -> bool | None:
+        return probe(f"https://apply.careers.microsoft.com/api/pcsx/search?domain=microsoft.com&query=&location={slug}&start=0")
+
+    def _probe_eightfold(slug: str) -> bool | None:
+        return probe(f"https://{slug}.eightfold.ai/api/apply/v2/jobs?domain={slug}.com&num_jobs=1&start=0")
+
+    def _probe_jobvite(slug: str) -> bool | None:
+        return probe(f"https://jobs.jobvite.com/{slug}/jobs")
+
+    # ats → probe(slug) -> True (live) | False (broken) | None (can't verify over plain HTTP)
+    PROBES = {
+        "greenhouse": lambda s: probe(GREENHOUSE.format(slug=s)),
+        "lever": lambda s: probe(LEVER.format(slug=s)),
+        "ashby": lambda s: probe(ASHBY.format(slug=s)),
+        "workday": _probe_workday,
+        # workday_browser sites WAF-block plain HTTP by definition — a 200 proves
+        # live, but a failure proves nothing (that's why they use the browser).
+        "workday_browser": lambda s: True if _probe_workday(s) else None,
+        "smartrecruiters": _probe_smartrecruiters,
+        "oracle": _probe_oracle,
+        "phenom": _probe_phenom,
+        "radancy": _probe_radancy,
+        "icims": _probe_icims,
+        "successfactors": _probe_successfactors,
+        "amazon": _probe_amazon,
+        "microsoft": _probe_microsoft,
+        "eightfold": _probe_eightfold,
+        "jobvite": _probe_jobvite,
+        "workable": lambda s: None,  # Cloudflare JS challenge — needs the browser scraper
+    }
 
     def slug_variants(name: str, current: str | None) -> list[str]:
         bare    = name.lower().replace(" ", "").replace("-", "").replace(".", "")
@@ -49,25 +178,25 @@ def cmd_detect(args: argparse.Namespace) -> None:
                 out.append(s)
         return out
 
-    SKIP_ATS = {"workday", "custom"}
     results = []
 
     for co in companies:
-        if co.ats in SKIP_ATS:
+        probe_fn = PROBES.get(co.ats)
+        if co.ats == "custom" or probe_fn is None or not co.slug:
             results.append((co.name, co.ats, co.slug, "skip", None))
             continue
 
-        # Check if current config is live
-        templates = {"greenhouse": GREENHOUSE, "lever": LEVER, "ashby": ASHBY}
-        tmpl = templates.get(co.ats)
-        current_ok = tmpl and co.slug and probe(tmpl.format(slug=co.slug))
-
-        if current_ok:
+        status = probe_fn(co.slug)
+        if status is True:
             results.append((co.name, co.ats, co.slug, "ok", None))
             continue
+        if status is None:
+            results.append((co.name, co.ats, co.slug, "unverifiable", None))
+            continue
 
-        # Try all ATS × slug variations to find what works
+        # Broken — for the simple board ATSes, try slug/ATS variations to suggest a fix
         found = []
+        templates = {"greenhouse": GREENHOUSE, "lever": LEVER, "ashby": ASHBY}
         for slug in slug_variants(co.name, co.slug):
             for ats, tmpl in templates.items():
                 if probe(tmpl.format(slug=slug)):
@@ -78,16 +207,18 @@ def cmd_detect(args: argparse.Namespace) -> None:
     ok = [r for r in results if r[3] == "ok"]
     fail = [r for r in results if r[3] == "fail"]
     skip = [r for r in results if r[3] == "skip"]
+    unverifiable = [r for r in results if r[3] == "unverifiable"]
 
     print(f"\n{'='*60}")
     print(f"ATS Detection Report — {len(companies)} companies checked")
     print(f"{'='*60}")
-    print(f"  Working : {len(ok)}")
-    print(f"  Broken  : {len(fail)}")
-    print(f"  Skipped : {len(skip)}  (workday/custom — need manual slug)\n")
+    print(f"  Working      : {len(ok)}")
+    print(f"  Broken       : {len(fail)}")
+    print(f"  Unverifiable : {len(unverifiable)}  (endpoint can't prove liveness over plain HTTP)")
+    print(f"  Skipped      : {len(skip)}  (custom / no slug — manual queue)\n")
 
     if fail:
-        print("BROKEN — update your sources.yaml:")
+        print("BROKEN — the company likely migrated ATS platforms; update sources.yaml:")
         for name, ats, slug, _, found in fail:
             current = f"{ats}/{slug}" if slug else ats
             if found:
@@ -95,14 +226,12 @@ def cmd_detect(args: argparse.Namespace) -> None:
                 print(f"  {name:<30}  currently: {current}")
                 print(f"  {'':30}  suggest  : {suggestions}")
             else:
-                print(f"  {name:<30}  currently: {current}  → no match found (may be workday/custom)")
+                print(f"  {name:<30}  currently: {current}  → no board-ATS match; re-fingerprint the careers site")
 
-    if skip:
-        print("\nSKIPPED (workday/custom) — add correct slug to sources.yaml:")
-        print("  See scrapers/workday.py for instructions on finding Workday slugs.")
-        for name, ats, slug, _, _ in skip:
-            slug_str = f"  slug: {slug}" if slug else "  slug: ??? (needs to be set)"
-            print(f"  {name:<30}  {ats}{slug_str}")
+    if unverifiable:
+        print("\nUNVERIFIABLE — probably fine, but confirm via a discover run:")
+        for name, ats, slug, _, _ in unverifiable:
+            print(f"  {name:<30}  {ats}/{slug}")
 
     if ok:
         print(f"\nWORKING ({len(ok)} companies):")

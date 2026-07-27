@@ -128,6 +128,11 @@ class WorkdayScraper(BaseScraper):
                 ext_path = item.get("externalPath", "")
                 job_url = f"https://{host}/{site}{ext_path}" if ext_path else f"https://{host}/{site}/jobs"
                 location = item.get("locationsText", "") or ""
+                # Multi-location postings come back as the literal string
+                # "N Locations" — treat as unknown so the location filter
+                # doesn't silently drop jobs that may include a target city.
+                if re.fullmatch(r"\d+ Locations", location):
+                    location = ""
 
                 jobs.append(
                     Job(

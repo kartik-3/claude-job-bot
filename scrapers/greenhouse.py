@@ -1,4 +1,5 @@
 import logging
+import time
 
 import requests
 
@@ -12,7 +13,24 @@ _API = "https://boards-api.greenhouse.io/v1/boards/{slug}/jobs?content=true"
 class GreenhouseScraper(BaseScraper):
     def fetch_jobs(self, company: Company) -> list[Job]:
         url = _API.format(slug=company.slug)
-        resp = requests.get(url, timeout=15)
+        # Large boards (content=true) can exceed the timeout or hit a
+        # transient 5xx — retry once before giving up.
+        for attempt in range(2):
+            try:
+                resp = requests.get(url, timeout=30)
+                if resp.status_code < 500:
+                    break
+                logger.warning(
+                    "greenhouse/%s: HTTP %d — retrying in 10s", company.slug, resp.status_code
+                )
+            except (requests.Timeout, requests.ConnectionError) as exc:
+                if attempt == 1:
+                    raise
+                logger.warning(
+                    "greenhouse/%s: %s — retrying in 10s", company.slug, type(exc).__name__
+                )
+            if attempt == 0:
+                time.sleep(10)
         resp.raise_for_status()
         data = resp.json()
 

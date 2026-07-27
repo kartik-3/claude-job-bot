@@ -4,8 +4,12 @@ from scrapers.base import BaseScraper, Company, Job
 from scrapers.eightfold import EightfoldScraper
 from scrapers.greenhouse import GreenhouseScraper
 from scrapers.icims import IcimsScraper
+from scrapers.jobvite import JobviteScraper
 from scrapers.lever import LeverScraper
+from scrapers.microsoft import MicrosoftScraper
 from scrapers.oracle import OracleScraper
+from scrapers.phenom import PhenomScraper
+from scrapers.radancy import RadancyScraper
 from scrapers.smartrecruiters import SmartRecruitersScraper
 from scrapers.successfactors import SuccessFactorsScraper
 from scrapers.workable import WorkableScraper
@@ -19,8 +23,12 @@ _REGISTRY: dict[str, type[BaseScraper]] = {
     "workday": WorkdayScraper,
     "workday_browser": WorkdayBrowserScraper,
     "amazon": AmazonScraper,
+    "microsoft": MicrosoftScraper,
     "oracle": OracleScraper,
     "eightfold": EightfoldScraper,
+    "phenom": PhenomScraper,
+    "jobvite": JobviteScraper,
+    "radancy": RadancyScraper,
     "icims": IcimsScraper,
     "smartrecruiters": SmartRecruitersScraper,
     "workable": WorkableScraper,
