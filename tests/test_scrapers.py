@@ -9,13 +9,18 @@ from scrapers.amazon import AmazonScraper
 from scrapers.ashby import AshbyScraper
 from scrapers.greenhouse import GreenhouseScraper
 from scrapers.lever import LeverScraper
+from scrapers.jobvite import JobviteScraper
+from scrapers.microsoft import MicrosoftScraper
 from scrapers.oracle import OracleScraper
+from scrapers.phenom import PhenomScraper
+from scrapers.radancy import RadancyScraper
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
 def _mock_get(payload: dict | list) -> MagicMock:
     resp = MagicMock()
+    resp.status_code = 200  # real int so scrapers' `status_code < 500` retry checks work
     resp.json.return_value = payload
     resp.raise_for_status.return_value = None
     return resp
@@ -173,7 +178,9 @@ class TestAmazonScraper:
         assert job.ats == "amazon"
         assert job.title == "Software Development Engineer, Prime Video"
         assert job.url == "https://www.amazon.jobs/en/jobs/10403410/software-development-engineer-prime-video"
-        assert job.apply_url == "https://account.amazon.com/jobs/10403410/apply"
+        # apply_url intentionally mirrors the job URL — url_next_step from the
+        # API is an account.amazon.com login redirect, not an apply page (135ed9a)
+        assert job.apply_url == job.url
         assert job.location == "US, WA, Seattle"
         assert job.remote is False
         assert job.posted_at == "2026-04-25"
@@ -285,6 +292,202 @@ class TestOracleScraper:
         url = mock_get.call_args[0][0]
         assert "eeho.fa.us2.oraclecloud.com" in url
         assert jobs[0].url.startswith("https://eeho.fa.us2.oraclecloud.com")
+
+
+# --- Microsoft ---
+
+def _mock_status_get(payload: dict) -> MagicMock:
+    resp = _mock_get(payload)
+    resp.status_code = 200  # scraper checks status_code < 500 for its 5xx retry
+    return resp
+
+
+@pytest.fixture
+def microsoft():
+    return Company(name="Microsoft", ats="microsoft", slug="India")
+
+
+class TestMicrosoftScraper:
+    def test_parses_job_count(self, microsoft):
+        payload = json.loads((FIXTURES / "microsoft_response.json").read_text())
+        with patch("scrapers.microsoft.requests.get", return_value=_mock_status_get(payload)):
+            jobs = MicrosoftScraper().fetch_jobs(microsoft)
+        assert len(jobs) == 3
+
+    def test_job_fields(self, microsoft):
+        payload = json.loads((FIXTURES / "microsoft_response.json").read_text())
+        with patch("scrapers.microsoft.requests.get", return_value=_mock_status_get(payload)):
+            jobs = MicrosoftScraper().fetch_jobs(microsoft)
+        job = jobs[0]
+        assert job.company == "Microsoft"
+        assert job.ats == "microsoft"
+        assert job.title == "Senior Partner Development Manager"
+        assert job.url == "https://apply.careers.microsoft.com/careers/job/1970393556924009"
+        assert job.apply_url == job.url
+        assert job.location == "India"
+        assert job.remote is False  # workLocationOption == "onsite"
+        assert job.posted_at == "2026-07-02"
+
+    def test_multi_location_join(self, microsoft):
+        payload = json.loads((FIXTURES / "microsoft_response.json").read_text())
+        with patch("scrapers.microsoft.requests.get", return_value=_mock_status_get(payload)):
+            jobs = MicrosoftScraper().fetch_jobs(microsoft)
+        assert jobs[2].location == "India, Multiple Locations, Multiple Locations"
+
+    def test_remote_detection(self, microsoft):
+        payload = {
+            "status": 200,
+            "data": {
+                "count": 1,
+                "positions": [{
+                    "id": 42,
+                    "name": "Software Engineer",
+                    "locations": ["India"],
+                    "workLocationOption": "remote",
+                    "postedTs": 1783012832,
+                    "positionUrl": "/careers/job/42",
+                }],
+            },
+        }
+        with patch("scrapers.microsoft.requests.get", return_value=_mock_status_get(payload)):
+            jobs = MicrosoftScraper().fetch_jobs(microsoft)
+        assert jobs[0].remote is True
+
+    def test_id_is_deterministic(self, microsoft):
+        payload = json.loads((FIXTURES / "microsoft_response.json").read_text())
+        with patch("scrapers.microsoft.requests.get", return_value=_mock_status_get(payload)):
+            jobs1 = MicrosoftScraper().fetch_jobs(microsoft)
+            jobs2 = MicrosoftScraper().fetch_jobs(microsoft)
+        assert jobs1[0].id == jobs2[0].id
+
+    def test_empty_response(self, microsoft):
+        payload = {"status": 200, "data": {"count": 0, "positions": []}}
+        with patch("scrapers.microsoft.requests.get", return_value=_mock_status_get(payload)):
+            jobs = MicrosoftScraper().fetch_jobs(microsoft)
+        assert jobs == []
+
+    def test_empty_slug_raises(self):
+        company = Company(name="Microsoft", ats="microsoft", slug=None)
+        with pytest.raises(ValueError):
+            MicrosoftScraper().fetch_jobs(company)
+
+
+# --- Phenom ---
+
+@pytest.fixture
+def lilly():
+    return Company(name="Eli Lilly", ats="phenom", slug="careers.lilly.com")
+
+
+class TestPhenomScraper:
+    def _fetch(self, company):
+        payload = json.loads((FIXTURES / "phenom_response.json").read_text())
+        with patch("scrapers.phenom.requests.post", return_value=_mock_status_get(payload)):
+            return PhenomScraper().fetch_jobs(company)
+
+    def test_parses_job_count(self, lilly):
+        assert len(self._fetch(lilly)) == 3
+
+    def test_job_fields(self, lilly):
+        job = self._fetch(lilly)[0]
+        assert job.company == "Eli Lilly"
+        assert job.ats == "phenom"
+        assert job.title == "Site Compliance Leader"
+        assert job.url.startswith("https://lilly.wd115.myworkdayjobs.com/LLY/job/")
+        assert job.apply_url == job.url
+        assert job.location == "Houston, Texas, United States of America"
+        assert job.remote is False
+        assert job.posted_at == "2026-06-03"
+
+    def test_id_is_deterministic(self, lilly):
+        assert self._fetch(lilly)[0].id == self._fetch(lilly)[0].id
+
+    def test_empty_response(self, lilly):
+        payload = {"refineSearch": {"status": 200, "totalHits": 0, "data": {"jobs": []}}}
+        with patch("scrapers.phenom.requests.post", return_value=_mock_status_get(payload)):
+            jobs = PhenomScraper().fetch_jobs(lilly)
+        assert jobs == []
+
+    def test_remote_detection(self, lilly):
+        payload = {"refineSearch": {"status": 200, "totalHits": 1, "data": {"jobs": [{
+            "title": "Software Engineer", "jobId": "R-1",
+            "multi_location": ["Remote, United States of America"],
+            "postedDate": "2026-07-01T00:00:00.000+0000",
+        }]}}}
+        with patch("scrapers.phenom.requests.post", return_value=_mock_status_get(payload)):
+            jobs = PhenomScraper().fetch_jobs(lilly)
+        assert jobs[0].remote is True
+        assert jobs[0].url == "https://careers.lilly.com/job/R-1"  # no applyUrl → constructed
+
+    def test_bad_slug_raises(self):
+        company = Company(name="X", ats="phenom", slug="careers.lilly.com/us/en")
+        with pytest.raises(ValueError):
+            PhenomScraper().fetch_jobs(company)
+
+
+# --- Jobvite ---
+
+class TestJobviteScraper:
+    def _fetch(self):
+        page = (FIXTURES / "jobvite_response.html").read_text()
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.text = page
+        resp.raise_for_status.return_value = None
+        with patch("scrapers.jobvite.requests.get", return_value=resp):
+            return JobviteScraper().fetch_jobs(Company(name="Nutanix", ats="jobvite", slug="nutanix"))
+
+    def test_parses_job_count(self):
+        assert len(self._fetch()) == 3
+
+    def test_job_fields(self):
+        job = self._fetch()[0]
+        assert job.company == "Nutanix"
+        assert job.ats == "jobvite"
+        assert job.title == "Accountant"
+        assert job.url == "https://jobs.jobvite.com/nutanix/job/oi1wzfw8"
+        assert job.apply_url == job.url
+        assert job.location == "Bangalore, India"  # whitespace collapsed
+        assert job.posted_at is None
+
+    def test_bad_slug_raises(self):
+        with pytest.raises(ValueError):
+            JobviteScraper().fetch_jobs(Company(name="X", ats="jobvite", slug="nutanix/jobs"))
+
+
+# --- Radancy ---
+
+class TestRadancyScraper:
+    def _fetch(self):
+        payload = json.loads((FIXTURES / "radancy_response.json").read_text())
+        with patch("scrapers.radancy.requests.get", return_value=_mock_get(payload)):
+            return RadancyScraper().fetch_jobs(
+                Company(name="AstraZeneca", ats="radancy", slug="careers.astrazeneca.com")
+            )
+
+    def test_parses_job_count(self):
+        assert len(self._fetch()) == 2
+
+    def test_job_fields(self):
+        job = self._fetch()[0]
+        assert job.company == "AstraZeneca"
+        assert job.ats == "radancy"
+        assert "Associate Director" in job.title
+        assert job.url.startswith("https://careers.astrazeneca.com/job/")
+        assert job.location == "Boston, Massachusetts"
+        assert job.posted_at is None
+
+    def test_empty_response(self):
+        payload = {"results": '<section data-total-results="0"><ul></ul></section>', "hasJobs": False}
+        with patch("scrapers.radancy.requests.get", return_value=_mock_get(payload)):
+            jobs = RadancyScraper().fetch_jobs(
+                Company(name="AstraZeneca", ats="radancy", slug="careers.astrazeneca.com")
+            )
+        assert jobs == []
+
+    def test_bad_slug_raises(self):
+        with pytest.raises(ValueError):
+            RadancyScraper().fetch_jobs(Company(name="X", ats="radancy", slug="careers.x.com/en"))
 
 
 # --- Shared ---

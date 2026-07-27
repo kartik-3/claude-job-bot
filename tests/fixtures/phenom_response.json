@@ -1,0 +1,64 @@
+{
+ "refineSearch": {
+  "status": 200,
+  "totalHits": 3,
+  "data": {
+   "jobs": [
+    {
+     "title": "Site Compliance Leader",
+     "jobId": "R-106440",
+     "reqId": "R-106440",
+     "applyUrl": "https://lilly.wd115.myworkdayjobs.com/LLY/job/US-Houston-TX/Site-Compliance-Leader_R-106440-1/apply",
+     "multi_location": [
+      "Houston, Texas, United States of America"
+     ],
+     "cityState": "Houston, Texas",
+     "country": "United States of America",
+     "city": "Houston",
+     "state": "Texas",
+     "postedDate": "2026-06-03T00:00:00.000+0000",
+     "dateCreated": "2026-06-03T16:15:26.355+0000",
+     "descriptionTeaser": "Embrace the opportunity to become a Site Compliance Leader and drive quality and regulatory excellence at Lilly Houston. Lead compliance initiatives, oversee quality management systems, and collaborate with cross-functional teams in a dynamic biotech environment. Shape the future of healthcare quality and make a meaningful impact on patient safety and organizational success.",
+     "type": "Full Time",
+     "category": "Manufacturing/Quality"
+    },
+    {
+     "title": "Principal Associate Quality Assurance - FUME",
+     "jobId": "R-106965",
+     "reqId": "R-106965",
+     "applyUrl": "https://lilly.wd115.myworkdayjobs.com/LLY/job/US-Houston-TX/Principal-Associate-Quality-Assurance---FUME_R-106965-1/apply",
+     "multi_location": [
+      "Houston, Texas, United States of America"
+     ],
+     "cityState": "Houston, Texas",
+     "country": "United States of America",
+     "city": "Houston",
+     "state": "Texas",
+     "postedDate": "2026-06-05T00:00:00.000+0000",
+     "dateCreated": "2026-06-05T20:23:09.654+0000",
+     "descriptionTeaser": "Embrace the role of a Principal Associate Quality Assurance and play a pivotal role in ensuring GMP compliance and regulatory excellence for our Houston facilities. Leverage your expertise in verification, validation, and quality oversight to drive continuous improvement and support site readiness. Make a meaningful impact in a global healthcare leader committed to innovation and quality.",
+     "type": "Full Time",
+     "category": "Manufacturing/Quality"
+    },
+    {
+     "title": "Advisor - Program Manager - GFD",
+     "jobId": "R-100660",
+     "reqId": "R-100660",
+     "applyUrl": "https://lilly.wd115.myworkdayjobs.com/LLY/job/US-Houston-TX/Program-Manager_R-100660/apply",
+     "multi_location": [
+      "Houston, Texas, United States of America"
+     ],
+     "cityState": "Houston, Texas",
+     "country": "United States of America",
+     "city": "Houston",
+     "state": "Texas",
+     "postedDate": "2026-06-11T00:00:00.000+0000",
+     "dateCreated": "2026-02-09T20:14:20.861+0000",
+     "descriptionTeaser": "Embrace the opportunity to become a Program Manager, Capital Projects (GFD) and lead high-impact, multimillion-dollar initiatives in pharmaceutical manufacturing. Drive project delivery, ensure compliance, and collaborate with global teams to deliver innovative healthcare solutions. Shape the future of medical facilities with your expertise in capital project management and stakeholder leadership.",
+     "type": "Full Time",
+     "category": "Engineering"
+    }
+   ]
+  }
+ }
+}

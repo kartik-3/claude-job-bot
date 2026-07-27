@@ -1,0 +1,76 @@
+{
+ "status": 200,
+ "error": {
+  "message": "",
+  "body": ""
+ },
+ "data": {
+  "positions": [
+   {
+    "id": 1970393556924009,
+    "displayJobId": "200042245",
+    "name": "Senior Partner Development Manager",
+    "locations": [
+     "India"
+    ],
+    "standardizedLocations": [
+     "IN"
+    ],
+    "postedTs": 1783012832,
+    "solrScore": null,
+    "stars": 0,
+    "department": "Partner Development Management",
+    "creationTs": 1782974297,
+    "isHot": 0,
+    "workLocationOption": "onsite",
+    "locationFlexibility": null,
+    "atsJobId": "200042245",
+    "positionUrl": "/careers/job/1970393556924009"
+   },
+   {
+    "id": 1970393556864894,
+    "displayJobId": "200037091",
+    "name": "Senior Consultant Data, AI",
+    "locations": [
+     "India"
+    ],
+    "standardizedLocations": [
+     "IN"
+    ],
+    "postedTs": 1783174876,
+    "solrScore": null,
+    "stars": 0,
+    "department": "Technology Consulting",
+    "creationTs": 1778239589,
+    "isHot": 0,
+    "workLocationOption": "onsite",
+    "locationFlexibility": null,
+    "atsJobId": "200037091",
+    "positionUrl": "/careers/job/1970393556864894"
+   },
+   {
+    "id": 1970393556917519,
+    "displayJobId": "200041777",
+    "name": "Applied Sciences INTERN",
+    "locations": [
+     "India, Multiple Locations, Multiple Locations"
+    ],
+    "standardizedLocations": [
+     "IN"
+    ],
+    "postedTs": 1782798576,
+    "solrScore": null,
+    "stars": 0,
+    "department": "Applied Sciences",
+    "creationTs": 1782731553,
+    "isHot": 0,
+    "workLocationOption": "onsite",
+    "locationFlexibility": null,
+    "atsJobId": "200041777",
+    "positionUrl": "/careers/job/1970393556917519"
+   }
+  ],
+  "count": 3
+ },
+ "metadata": null
+}
